@@ -79,6 +79,7 @@ export default function RecordActivity() {
   const map = useRef<mapboxgl.Map | null>(null);
   const userMarker = useRef<mapboxgl.Marker | null>(null);
   const waypointMarkers = useRef<mapboxgl.Marker[]>([]);
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -106,6 +107,21 @@ export default function RecordActivity() {
       });
 
       map.current!.addLayer({
+        id: "route-outline",
+        type: "line",
+        source: "route",
+        layout: {
+          "line-join": "round",
+          "line-cap": "round",
+        },
+        paint: {
+          "line-color": "#000000",
+          "line-width": 5,
+          "line-opacity": 0.4,
+        },
+      });
+
+      map.current!.addLayer({
         id: "route",
         type: "line",
         source: "route",
@@ -115,15 +131,19 @@ export default function RecordActivity() {
         },
         paint: {
           "line-color": "#22c55e",
-          "line-width": 4,
+          "line-width": 3,
         },
       });
+
+      setMapReady(true);
     });
 
     return () => {
       if (map.current) {
         map.current.remove();
+        map.current = null;
       }
+      setMapReady(false);
     };
   }, []);
 
@@ -164,7 +184,7 @@ export default function RecordActivity() {
   }, [currentPosition, isRecording, isPaused]);
 
   useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !mapReady) return;
 
     const source = map.current.getSource("route") as mapboxgl.GeoJSONSource;
     if (!source) return;
@@ -201,7 +221,7 @@ export default function RecordActivity() {
         },
       });
     }
-  }, [trackPoints]);
+  }, [trackPoints, mapReady]);
 
   useEffect(() => {
     if (!map.current) return;
