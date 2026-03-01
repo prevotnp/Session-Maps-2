@@ -591,97 +591,97 @@ export default function RecordingOverlay({ map, isVisible, onClose, onDisplayRou
   }
 
   return (
-    <div className="absolute bottom-40 left-0 right-0 z-30 pointer-events-auto">
-      <div className="mx-3 bg-slate-800/95 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-center gap-2 py-1.5 bg-red-600">
-          <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse" />
-          <span className="text-white text-sm font-semibold">
+    <div className="absolute top-0 left-0 right-0 z-30 pointer-events-auto">
+      <div className="bg-slate-800/95 backdrop-blur-md border-b border-slate-700 shadow-2xl">
+        <div className="flex items-center justify-center gap-1.5 py-1 bg-red-600">
+          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          <span className="text-white text-xs font-semibold">
             Recording {activityType.charAt(0).toUpperCase() + activityType.slice(1)}
           </span>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 p-3">
+        <div className="grid grid-cols-3 gap-1 px-3 pt-1.5 pb-1">
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-slate-400 text-xs mb-0.5">
-              <Timer className="w-3 h-3" /> Time
+            <div className="flex items-center justify-center gap-1 text-slate-400 text-[10px]">
+              <Timer className="w-2.5 h-2.5" /> Time
             </div>
-            <div className="text-2xl font-mono font-bold text-white">
+            <div className="text-base font-mono font-bold text-white">
               {formatDuration(stats.elapsedTime)}
             </div>
           </div>
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-slate-400 text-xs mb-0.5">
-              <RouteIcon className="w-3 h-3" /> Distance
+            <div className="flex items-center justify-center gap-1 text-slate-400 text-[10px]">
+              <RouteIcon className="w-2.5 h-2.5" /> Distance
             </div>
-            <div className="text-2xl font-mono font-bold text-white">
+            <div className="text-base font-mono font-bold text-white">
               {formatDistance(stats.distance)}
             </div>
           </div>
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-slate-400 text-xs mb-0.5">
-              <Gauge className="w-3 h-3" /> Speed
+            <div className="flex items-center justify-center gap-1 text-slate-400 text-[10px]">
+              <Gauge className="w-2.5 h-2.5" /> Speed
             </div>
-            <div className="text-2xl font-mono font-bold text-white">
+            <div className="text-base font-mono font-bold text-white">
               {formatSpeed(stats.currentSpeed)}
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 px-3 pb-2">
+        <div className="grid grid-cols-4 gap-1 px-3 pb-1">
           <div className="text-center">
-            <div className="text-slate-400 text-xs">Avg Speed</div>
-            <div className="text-sm font-semibold text-white">{formatSpeed(stats.averageSpeed)}</div>
+            <div className="text-slate-400 text-[10px]">Avg Speed</div>
+            <div className="text-xs font-semibold text-white">{formatSpeed(stats.averageSpeed)}</div>
           </div>
           <div className="text-center">
-            <div className="text-slate-400 text-xs">Pace</div>
-            <div className="text-sm font-semibold text-white">{formatPace(stats.averagePace)} /mi</div>
+            <div className="text-slate-400 text-[10px]">Pace</div>
+            <div className="text-xs font-semibold text-white">{formatPace(stats.averagePace)} /mi</div>
           </div>
           <div className="text-center">
-            <div className="text-slate-400 text-xs">↑ Gain</div>
-            <div className="text-sm font-semibold text-green-400">{formatElevation(stats.elevationGain)}</div>
+            <div className="text-slate-400 text-[10px]">↑ Gain</div>
+            <div className="text-xs font-semibold text-green-400">{formatElevation(stats.elevationGain)}</div>
           </div>
           <div className="text-center">
-            <div className="text-slate-400 text-xs">↓ Loss</div>
-            <div className="text-sm font-semibold text-red-400">{formatElevation(stats.elevationLoss)}</div>
+            <div className="text-slate-400 text-[10px]">↓ Loss</div>
+            <div className="text-xs font-semibold text-red-400">{formatElevation(stats.elevationLoss)}</div>
           </div>
         </div>
 
-        <div className="flex gap-4 px-3 pb-3 justify-center">
+        <div className="flex gap-3 px-3 pb-2 justify-center">
           <Button
-            size="lg"
+            size="sm"
             variant="outline"
-            className="h-14 px-3 rounded-full border-yellow-500 text-yellow-400 hover:bg-yellow-500/20 flex flex-col items-center gap-0.5"
+            className="h-10 px-2.5 rounded-full border-yellow-500 text-yellow-400 hover:bg-yellow-500/20 flex flex-col items-center gap-0"
             onClick={() => addWaypoint()}
           >
-            <MapPin className="w-5 h-5" />
-            <span className="text-[9px] leading-tight font-medium">Pin My<br/>Location</span>
+            <MapPin className="w-4 h-4" />
+            <span className="text-[8px] leading-tight font-medium">Pin</span>
           </Button>
 
           <Button
-            size="lg"
+            size="sm"
             variant="destructive"
-            className="w-16 h-16 rounded-full"
+            className="w-11 h-11 rounded-full"
             onClick={handleStop}
           >
-            <Square className="w-6 h-6" />
+            <Square className="w-5 h-5" />
           </Button>
 
           {isPaused ? (
             <Button
-              size="lg"
-              className="w-14 h-14 rounded-full bg-green-600 hover:bg-green-700"
+              size="sm"
+              className="w-10 h-10 rounded-full bg-green-600 hover:bg-green-700"
               onClick={resumeRecording}
             >
-              <Play className="w-6 h-6" />
+              <Play className="w-5 h-5" />
             </Button>
           ) : (
             <Button
-              size="lg"
+              size="sm"
               variant="secondary"
-              className="w-14 h-14 rounded-full"
+              className="w-10 h-10 rounded-full"
               onClick={pauseRecording}
             >
-              <Pause className="w-6 h-6" />
+              <Pause className="w-5 h-5" />
             </Button>
           )}
         </div>
