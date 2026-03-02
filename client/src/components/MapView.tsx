@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Pencil, Settings2, Route as RouteIcon } from 'lucide-react';
+import AIRouteAssistPanel from './AIRouteAssistPanel';
 import { useQuery } from '@tanstack/react-query';
 import { addTetonCountyImagery, removeTetonCountyImagery, switchToTetonCountyView, addDroneImageryBoundaries } from '@/lib/mapUtils';
 import { useMutation } from '@tanstack/react-query';
@@ -116,6 +117,10 @@ const MapView: React.FC<MapViewProps> = ({
     note: string;
   } | null>(null);
   const editPOIMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  
+  // AI Assist panel state
+  const [isAIAssistOpen, setIsAIAssistOpen] = useState(false);
+  const aiMarkersRef = useRef<mapboxgl.Marker[]>([]);
   
   // Recording overlay state
   const [showRecordingOverlay, setShowRecordingOverlay] = useState(false);
@@ -2207,10 +2212,44 @@ const MapView: React.FC<MapViewProps> = ({
         isRecordingActive={showRecordingOverlay}
         showOutdoorPOIs={showOutdoorPOIs}
         onToggleOutdoorPOIs={() => setShowOutdoorPOIs(!showOutdoorPOIs)}
+        onOpenAIAssist={() => setIsAIAssistOpen(!isAIAssistOpen)}
+        isAIAssistOpen={isAIAssistOpen}
       />
       
       {/* Location tracking is now handled by Mapbox directly with a blue pulsing dot */}
       
+      {/* AI Route Assist Panel */}
+      <AIRouteAssistPanel
+        isOpen={isAIAssistOpen}
+        onClose={() => setIsAIAssistOpen(false)}
+        mapCenter={map ? { lat: map.getCenter().lat, lng: map.getCenter().lng } : { lat: 0, lng: 0 }}
+        mapZoom={map ? map.getZoom() : 10}
+        onAddWaypoints={(waypoints, label) => {
+          if (map && waypoints.length > 0) {
+            aiMarkersRef.current.forEach(m => m.remove());
+            aiMarkersRef.current = [];
+
+            const bounds = new mapboxgl.LngLatBounds();
+            waypoints.forEach((wp, i) => {
+              bounds.extend([wp.lng, wp.lat]);
+              const el = document.createElement('div');
+              el.className = 'ai-waypoint-marker';
+              el.style.cssText = 'width:28px;height:28px;border-radius:50%;background:#3b82f6;border:3px solid white;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:bold;box-shadow:0 2px 6px rgba(0,0,0,0.4);cursor:pointer;';
+              el.textContent = String(i + 1);
+              el.title = wp.name + (wp.description ? ` — ${wp.description}` : '');
+              const marker = new mapboxgl.Marker({ element: el })
+                .setLngLat([wp.lng, wp.lat])
+                .setPopup(new mapboxgl.Popup({ offset: 20 }).setHTML(
+                  `<strong>${wp.name}</strong>${wp.description ? `<br/><span style="color:#666">${wp.description}</span>` : ''}`
+                ))
+                .addTo(map);
+              aiMarkersRef.current.push(marker);
+            });
+
+            map.fitBounds(bounds, { padding: 80, maxZoom: 14 });
+          }
+        }}
+      />
 
       
       

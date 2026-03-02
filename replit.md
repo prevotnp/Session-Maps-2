@@ -38,6 +38,7 @@ The application features a unified bottom toolbar for map controls, including 3D
 - **Sharing**: Routes can be shared with friends via email or username, appearing as read-only for recipients.
 - **PWA Support**: Service worker for static asset caching, manifest.json for "Add to Home Screen", iOS-optimized meta tags.
 - **iOS App (Capacitor)**: Native wrapper for App Store distribution with location permissions and push notification support. See `docs/IOS_BUILD_GUIDE.md`.
+- **AI Route Assistant**: AI-powered route planning using Anthropic Claude. Fetches real trail data from OpenStreetMap Overpass API AND community routes from the Session Maps database, presents multiple labeled route options (trail-data-sourced vs community-sourced), with expandable waypoint cards and "Add to Map" functionality. Available in both 2D Mapbox map (via UnifiedToolbar) and 3D Cesium viewer. API: POST `/api/ai/route-assist`. Supports activity types: hiking, trail running, downhill skiing, XC skiing, mountain biking. Key files: `server/aiRouteAssist.ts` (backend), `client/src/components/AIRouteAssistPanel.tsx` (frontend chat panel).
 - **Background Resilience**: Wake Lock API keeps screen on during recording. Activity recording state persisted to localStorage (survives iOS app suspension). `useBackgroundResilience` hook handles visibility changes, GPS restart, and WebSocket reconnection on foreground resume. Recovery banner offers to resume interrupted recordings. WebSocket has exponential backoff reconnection and visibility-aware reconnect. Key hooks: `useWakeLock.ts`, `useBackgroundResilience.ts`.
 
 # External Dependencies
@@ -51,6 +52,7 @@ The application features a unified bottom toolbar for map controls, including 3D
 - **Waymarked Trails**: Multi-activity trail overlay tiles (hiking, cycling, MTB, slopes, riding, skating) and named route API.
 - **Open-Meteo**: Free elevation API used by custom fallback trail router for elevation gain/loss calculations.
 - **Esri World Imagery**: High-resolution overlay imagery.
+- **Anthropic Claude**: AI route planning assistant (claude-sonnet-4-20250514) for natural language route suggestions. Requires ANTHROPIC_API_KEY.
 
 ## Key Libraries
 - **Frontend**: React Query, Mapbox GL JS, Radix UI, Tailwind CSS, Wouter.

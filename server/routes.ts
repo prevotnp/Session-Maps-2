@@ -5603,6 +5603,42 @@ Response JSON format:
     }
   });
 
+  const { processRouteAssistRequest } = await import('./aiRouteAssist');
+
+  app.post("/api/ai/route-assist", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    try {
+      const { message, activityType, mapCenter, mapZoom, conversationHistory, existingRoute } = req.body;
+
+      if (!message || typeof message !== 'string' || message.trim().length === 0) {
+        return res.status(400).json({ message: "Message is required" });
+      }
+
+      if (!mapCenter || typeof mapCenter.lat !== 'number' || typeof mapCenter.lng !== 'number') {
+        return res.status(400).json({ message: "Map center coordinates required" });
+      }
+
+      const result = await processRouteAssistRequest({
+        message: message.trim(),
+        activityType: activityType || 'general',
+        mapCenter,
+        mapZoom: mapZoom || 12,
+        conversationHistory: conversationHistory || [],
+        existingRoute: existingRoute || undefined,
+      }, dbStorage);
+
+      return res.json(result);
+    } catch (error) {
+      console.error('AI route assist error:', error);
+      return res.status(500).json({
+        message: `AI assistant error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+    }
+  });
+
   app.post("/api/proxy/overpass", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const { query } = req.body;
