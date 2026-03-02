@@ -1,13 +1,33 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: (process.env.ANTHROPIC_API_KEY || '').replace(/[^\x20-\x7E]/g, '').trim(),
 });
 
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
+
+function sanitizeForApi(text: string): string {
+  return text
+    .replace(/\u2014/g, '--')
+    .replace(/\u2013/g, '-')
+    .replace(/\u2018/g, "'")
+    .replace(/\u2019/g, "'")
+    .replace(/\u201C/g, '"')
+    .replace(/\u201D/g, '"')
+    .replace(/\u2026/g, '...')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\u00B0/g, ' deg')
+    .replace(/\u00B7/g, '-')
+    .replace(/\u2022/g, '-')
+    .replace(/\u2032/g, "'")
+    .replace(/\u2033/g, '"')
+    .replace(/\u00E9/g, 'e')
+    .replace(/\u00F1/g, 'n')
+    .replace(/[^\x00-\x7F]/g, ' ');
+}
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -534,12 +554,13 @@ export async function processRouteAssistRequest(
 
   console.log(`[AI Route Assist] Fetching data for ${activityType} near ${mapCenter.lat.toFixed(4)}, ${mapCenter.lng.toFixed(4)} (zoom ${mapZoom})`);
 
-  const [trailData, communityRoutes] = await Promise.all([
+  const [trailDataRaw, communityRoutes] = await Promise.all([
     fetchTrailDataForArea(mapCenter, mapZoom, activityType),
     fetchCommunityRoutes(mapCenter, radiusDeg, dbStorage),
   ]);
 
-  const communityData = summarizeCommunityRoutes(communityRoutes);
+  const trailData = sanitizeForApi(trailDataRaw);
+  const communityData = sanitizeForApi(summarizeCommunityRoutes(communityRoutes));
 
   console.log(`[AI Route Assist] OSM trail data: ${trailData.length} chars`);
   console.log(`[AI Route Assist] Community routes: ${communityRoutes.length} found nearby`);
@@ -549,9 +570,9 @@ export async function processRouteAssistRequest(
   const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
   const recentHistory = request.conversationHistory.slice(-10);
   for (const msg of recentHistory) {
-    messages.push({ role: msg.role, content: msg.content });
+    messages.push({ role: msg.role, content: sanitizeForApi(msg.content) });
   }
-  messages.push({ role: 'user', content: request.message });
+  messages.push({ role: 'user', content: sanitizeForApi(request.message) });
 
   try {
     console.log(`[AI Route Assist] Sending to Claude (${messages.length} messages, system prompt ${systemPrompt.length} chars)`);
@@ -559,8 +580,11 @@ export async function processRouteAssistRequest(
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 3000,
-      system: systemPrompt,
-      messages: messages,
+      system: sanitizeForApi(systemPrompt),
+      messages: messages.map(m => ({
+        role: m.role,
+        content: sanitizeForApi(m.content),
+      })),
     });
 
     const assistantMessage = response.content
