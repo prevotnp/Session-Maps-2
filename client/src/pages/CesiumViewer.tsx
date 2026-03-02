@@ -19,7 +19,8 @@ import {
   Route as RouteIcon,
   List,
   Mountain,
-  Loader2
+  Loader2,
+  Home
 } from 'lucide-react';
 import CesiumRouteBuilder from '@/components/CesiumRouteBuilder';
 import CesiumRouteSummaryPanel from '@/components/CesiumRouteSummaryPanel';
@@ -181,24 +182,6 @@ export default function CesiumViewer() {
         if (viewer.scene.sun) viewer.scene.sun.show = false;
         if (viewer.scene.moon) viewer.scene.moon.show = false;
         if (viewer.scene.skyBox) viewer.scene.skyBox.show = false;
-        viewer.scene.screenSpaceCameraController.enableCollisionDetection = true;
-
-        const controller = viewer.scene.screenSpaceCameraController;
-        controller.minimumZoomDistance = 2.0;
-        controller.maximumZoomDistance = 5000.0;
-
-        controller.zoomEventTypes = [
-          Cesium.CameraEventType.RIGHT_DRAG,
-          Cesium.CameraEventType.WHEEL,
-          Cesium.CameraEventType.PINCH,
-        ];
-        controller.tiltEventTypes = [
-          Cesium.CameraEventType.MIDDLE_DRAG,
-          Cesium.CameraEventType.LEFT_DRAG,
-        ];
-        controller.rotateEventTypes = [Cesium.CameraEventType.LEFT_DRAG];
-        controller.lookEventTypes = [];
-
         viewerRef.current = viewer;
 
         const tilesetUrl = tileset.tilesetJsonUrl;
@@ -222,65 +205,114 @@ export default function CesiumViewer() {
 
         await viewer.zoomTo(loadedTileset);
 
+        const boundingSphere = loadedTileset.boundingSphere;
+        const tilesetCenter = boundingSphere.center;
+
+        const initialCameraState = {
+          position: viewer.camera.position.clone(),
+          heading: viewer.camera.heading,
+          pitch: viewer.camera.pitch,
+          roll: viewer.camera.roll,
+        };
+        (viewerRef as any).__initialCameraState = initialCameraState;
+        (viewerRef as any).__tilesetCenter = tilesetCenter.clone();
+        (viewerRef as any).__tilesetRadius = boundingSphere.radius;
+
+        const controller = viewer.scene.screenSpaceCameraController;
+        controller.enableCollisionDetection = true;
+        controller.minimumZoomDistance = 2.0;
+        controller.maximumZoomDistance = boundingSphere.radius * 8;
+
+        controller.zoomEventTypes = [
+          C.CameraEventType.RIGHT_DRAG,
+          C.CameraEventType.WHEEL,
+          C.CameraEventType.PINCH,
+        ];
+        controller.tiltEventTypes = [
+          C.CameraEventType.MIDDLE_DRAG,
+          C.CameraEventType.LEFT_DRAG,
+        ];
+        controller.rotateEventTypes = [C.CameraEventType.LEFT_DRAG];
+        controller.lookEventTypes = [];
+
         viewer.scene.preRender.addEventListener(() => {
           const camera = viewer.camera;
 
           const minPitch = -Math.PI / 2;
           const maxPitch = Math.PI * 0.028;
+          let needsOrientationFix = false;
+          let correctedPitch = camera.pitch;
+          let correctedRoll = camera.roll;
 
           if (camera.pitch > maxPitch) {
-            camera.setView({
-              orientation: { heading: camera.heading, pitch: maxPitch, roll: 0 },
-            });
+            correctedPitch = maxPitch;
+            needsOrientationFix = true;
           }
           if (camera.pitch < minPitch) {
-            camera.setView({
-              orientation: { heading: camera.heading, pitch: minPitch, roll: 0 },
-            });
+            correctedPitch = minPitch;
+            needsOrientationFix = true;
           }
           if (Math.abs(camera.roll) > 0.01) {
+            correctedRoll = 0;
+            needsOrientationFix = true;
+          }
+
+          if (needsOrientationFix) {
             camera.setView({
-              orientation: { heading: camera.heading, pitch: camera.pitch, roll: 0 },
+              orientation: {
+                heading: camera.heading,
+                pitch: correctedPitch,
+                roll: 0,
+              },
             });
           }
 
-          if (tilesetRef.current && tilesetRef.current.boundingSphere) {
-            const boundingSphere = tilesetRef.current.boundingSphere;
-            const tilesetCenter = boundingSphere.center;
-            const maxDistance = boundingSphere.radius * 3;
+          const maxDistanceFromCenter = boundingSphere.radius * 6;
+          const cameraPosition = camera.positionWC;
+          const distanceFromCenter = C.Cartesian3.distance(cameraPosition, tilesetCenter);
 
-            const cameraPosition = viewer.camera.positionWC;
-            const distanceFromCenter = Cesium.Cartesian3.distance(cameraPosition, tilesetCenter);
+          if (distanceFromCenter > maxDistanceFromCenter) {
+            const direction = C.Cartesian3.subtract(
+              tilesetCenter, cameraPosition, new C.Cartesian3()
+            );
+            C.Cartesian3.normalize(direction, direction);
+            const pullBack = distanceFromCenter - maxDistanceFromCenter;
+            const offset = C.Cartesian3.multiplyByScalar(
+              direction, pullBack + 1, new C.Cartesian3()
+            );
+            const correctedPos = C.Cartesian3.add(
+              cameraPosition, offset, new C.Cartesian3()
+            );
 
-            if (distanceFromCenter > maxDistance) {
-              const direction = Cesium.Cartesian3.subtract(tilesetCenter, cameraPosition, new Cesium.Cartesian3());
-              Cesium.Cartesian3.normalize(direction, direction);
-              const pullBackDistance = distanceFromCenter - maxDistance;
-              const offset = Cesium.Cartesian3.multiplyByScalar(direction, pullBackDistance, new Cesium.Cartesian3());
-              const newPosition = Cesium.Cartesian3.add(cameraPosition, offset, new Cesium.Cartesian3());
+            camera.setView({
+              destination: correctedPos,
+              orientation: {
+                heading: camera.heading,
+                pitch: camera.pitch,
+                roll: 0,
+              },
+            });
+          }
 
-              camera.setView({
-                destination: newPosition,
-                orientation: { heading: camera.heading, pitch: camera.pitch, roll: 0 },
-              });
-            }
+          const centerCartographic = C.Cartographic.fromCartesian(tilesetCenter);
+          const approxGroundHeight = centerCartographic.height - (boundingSphere.radius * 0.5);
+          const minimumHeight = approxGroundHeight + MIN_CAMERA_HEIGHT;
 
-            const centerCartographic = Cesium.Cartographic.fromCartesian(boundingSphere.center);
-            const approximateGroundHeight = centerCartographic.height - (boundingSphere.radius * 0.5);
-            const minimumAllowedHeight = approximateGroundHeight + MIN_CAMERA_HEIGHT;
-
-            const cameraCartographic = camera.positionCartographic;
-            if (cameraCartographic.height < minimumAllowedHeight) {
-              const correctedPosition = Cesium.Cartesian3.fromRadians(
-                cameraCartographic.longitude,
-                cameraCartographic.latitude,
-                minimumAllowedHeight
-              );
-              camera.setView({
-                destination: correctedPosition,
-                orientation: { heading: camera.heading, pitch: camera.pitch, roll: 0 },
-              });
-            }
+          const camCartographic = camera.positionCartographic;
+          if (camCartographic.height < minimumHeight) {
+            const correctedPosition = C.Cartesian3.fromRadians(
+              camCartographic.longitude,
+              camCartographic.latitude,
+              minimumHeight
+            );
+            camera.setView({
+              destination: correctedPosition,
+              orientation: {
+                heading: camera.heading,
+                pitch: camera.pitch,
+                roll: 0,
+              },
+            });
           }
         });
 
@@ -498,27 +530,40 @@ export default function CesiumViewer() {
     });
   }, [gpsPosition]);
 
-  const resetView = useCallback(() => {
-    if (!viewerRef.current || !tilesetRef.current || !Cesium) return;
+  const recenterView = useCallback(() => {
+    if (!viewerRef.current || !Cesium) return;
     const viewer = viewerRef.current;
-    const boundingSphere = tilesetRef.current.boundingSphere;
+    const savedState = (viewerRef as any).__initialCameraState;
+    const tilesetCenter = (viewerRef as any).__tilesetCenter;
+    const tilesetRadius = (viewerRef as any).__tilesetRadius;
 
-    const center = Cesium.Cartographic.fromCartesian(boundingSphere.center);
-    const viewDistance = boundingSphere.radius * 2.5;
-
-    viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromRadians(
-        center.longitude,
-        center.latitude,
-        center.height + viewDistance
-      ),
-      orientation: {
-        heading: 0,
-        pitch: Cesium.Math.toRadians(-45),
-        roll: 0,
-      },
-      duration: 1.5,
-    });
+    if (savedState) {
+      viewer.camera.flyTo({
+        destination: savedState.position,
+        orientation: {
+          heading: savedState.heading,
+          pitch: savedState.pitch,
+          roll: 0,
+        },
+        duration: 1.2,
+      });
+    } else if (tilesetRef.current) {
+      const center = Cesium.Cartographic.fromCartesian(tilesetCenter || tilesetRef.current.boundingSphere.center);
+      const radius = tilesetRadius || tilesetRef.current.boundingSphere.radius;
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromRadians(
+          center.longitude,
+          center.latitude,
+          center.height + radius * 2.5
+        ),
+        orientation: {
+          heading: 0,
+          pitch: Cesium.Math.toRadians(-45),
+          roll: 0,
+        },
+        duration: 1.2,
+      });
+    }
   }, []);
 
   const zoomIn = useCallback(() => {
@@ -554,29 +599,16 @@ export default function CesiumViewer() {
   const lookNorth = useCallback(() => {
     if (!viewerRef.current || !Cesium) return;
     const camera = viewerRef.current.camera;
-    const center = viewerRef.current.scene.globe.pick(
-      camera.getPickRay(new Cesium.Cartesian2(
-        viewerRef.current.canvas.clientWidth / 2,
-        viewerRef.current.canvas.clientHeight / 2
-      )),
-      viewerRef.current.scene
-    );
-    if (center) {
-      const distance = Cesium.Cartesian3.distance(camera.positionWC, center);
-      camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(
-          Cesium.Math.toDegrees(camera.positionCartographic.longitude),
-          Cesium.Math.toDegrees(camera.positionCartographic.latitude),
-          camera.positionCartographic.height
-        ),
-        orientation: {
-          heading: 0,
-          pitch: camera.pitch,
-          roll: 0,
-        },
-        duration: 0.5,
-      });
-    }
+
+    camera.flyTo({
+      destination: camera.position.clone(),
+      orientation: {
+        heading: 0,
+        pitch: camera.pitch,
+        roll: 0,
+      },
+      duration: 0.5,
+    });
   }, []);
 
   const toggleMapOverlay = useCallback(async () => {
@@ -1132,8 +1164,8 @@ export default function CesiumViewer() {
               variant="outline"
               size="icon"
               className="w-[44px] h-[44px] bg-blue-900/80 border-blue-400/40 text-blue-300 hover:bg-blue-800 hover:text-white active:scale-95 transition-all"
-              onClick={resetView}
-              title="Reset view — return to default overview"
+              onClick={recenterView}
+              title="Re-center view"
             >
               <RotateCcw className="w-5 h-5" />
             </Button>
@@ -1149,6 +1181,19 @@ export default function CesiumViewer() {
           </div>
         </div>
       </div>
+
+      {!isLoading && !error && (
+        <div className="absolute bottom-20 left-4 z-40">
+          <button
+            className="flex items-center gap-2 px-4 py-3 rounded-xl bg-blue-600/90 hover:bg-blue-500 active:scale-95 border border-blue-400/30 text-white font-medium text-sm shadow-lg shadow-blue-900/40 transition-all backdrop-blur-sm"
+            onClick={recenterView}
+            title="Re-center view — return to the default overview of the 3D model"
+          >
+            <Home className="w-5 h-5" />
+            <span>Re-center</span>
+          </button>
+        </div>
+      )}
 
       {isRouteBuilderOpen && viewerRef.current && tilesetId && (
         <CesiumRouteBuilder
