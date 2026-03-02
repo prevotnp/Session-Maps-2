@@ -72,6 +72,13 @@ export default function ActivityDetail() {
 
   const { data: activity, isLoading, error } = useQuery<Activity>({
     queryKey: ["/api/activities", params.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/activities/${params.id}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch activity");
+      return res.json();
+    },
     enabled: !!params.id,
   });
 
