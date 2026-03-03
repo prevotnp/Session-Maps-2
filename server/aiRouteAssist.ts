@@ -1,7 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 
+const rawApiKey = process.env.ANTHROPIC_API_KEY || '';
+const nonAsciiChars = [...rawApiKey].filter((ch, i) => ch.charCodeAt(0) > 127);
+if (nonAsciiChars.length > 0) {
+  console.warn(`[AI Route Assist] WARNING: ANTHROPIC_API_KEY contains ${nonAsciiChars.length} non-ASCII character(s) at positions: ${
+    [...rawApiKey].map((ch, i) => ch.charCodeAt(0) > 127 ? `${i}(U+${ch.charCodeAt(0).toString(16).toUpperCase()})` : null).filter(Boolean).join(', ')
+  }. Stripping them.`);
+}
+const cleanApiKey = rawApiKey.replace(/[^\x20-\x7E]/g, '').trim();
 const anthropic = new Anthropic({
-  apiKey: (process.env.ANTHROPIC_API_KEY || '').replace(/[^\x20-\x7E]/g, '').trim(),
+  apiKey: cleanApiKey,
 });
 
 const OVERPASS_ENDPOINTS = [
