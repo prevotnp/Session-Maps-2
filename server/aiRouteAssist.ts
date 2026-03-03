@@ -2,8 +2,15 @@ import Anthropic from '@anthropic-ai/sdk';
 
 function getAnthropicClient(): Anthropic {
   const rawApiKey = (process.env.ANTHROPIC_API_KEY || '').trim();
-  console.log(`[AI Route Assist] API key: length=${rawApiKey.length}, starts="${rawApiKey.substring(0, 10)}...", ends="...${rawApiKey.substring(rawApiKey.length - 5)}"`);
-  return new Anthropic({ apiKey: rawApiKey });
+  let apiKey = rawApiKey;
+  const match = rawApiKey.match(/sk-ant-[A-Za-z0-9_-]{20,}/);
+  if (match) {
+    apiKey = match[0];
+  }
+  if (apiKey.length > 300 || !apiKey.startsWith('sk-ant-')) {
+    console.error(`[AI Route Assist] ANTHROPIC_API_KEY is invalid (length=${rawApiKey.length}, starts="${rawApiKey.substring(0, 15)}"). Please set it to your actual Anthropic API key (starts with sk-ant-).`);
+  }
+  return new Anthropic({ apiKey });
 }
 
 const OVERPASS_ENDPOINTS = [
