@@ -1205,13 +1205,11 @@ export function addBaseTrailLinesAndLabels(map: mapboxgl.Map): void {
 // Add topographic contour lines overlay
 export function addTopoContourLines(map: mapboxgl.Map): { cleanup?: () => void } {
   const addLayers = () => {
-    // Skip if map is not loaded or layers already exist
-    if (!map.isStyleLoaded() || map.getLayer('contour-lines')) {
+    if (map.getLayer('contour-lines')) {
       return;
     }
 
     try {
-      // Add Mapbox Terrain vector tiles source if not already present
       if (!map.getSource('mapbox-terrain')) {
         map.addSource('mapbox-terrain', {
           type: 'vector',
@@ -1219,72 +1217,76 @@ export function addTopoContourLines(map: mapboxgl.Map): { cleanup?: () => void }
         });
       }
 
-      // Add contour lines layer
       map.addLayer({
         id: 'contour-lines',
         type: 'line',
         source: 'mapbox-terrain',
         'source-layer': 'contour',
+        minzoom: 9,
         paint: {
-          'line-color': '#C97A2C',
-          'line-width': {
-            base: 1,
-            stops: [
-              [13, 0.5],
-              [16, 1],
-              [18, 1.5]
-            ]
-          },
-          'line-opacity': 0.7
+          'line-color': '#D4943C',
+          'line-width': [
+            'interpolate', ['linear'], ['zoom'],
+            9, 0.5,
+            12, 0.8,
+            14, 1.2,
+            16, 1.8,
+            18, 2.5
+          ],
+          'line-opacity': 0.85
         }
       });
 
-      // Add contour labels (elevation numbers)
       map.addLayer({
         id: 'contour-labels',
         type: 'symbol',
         source: 'mapbox-terrain',
         'source-layer': 'contour',
+        minzoom: 11,
         filter: ['==', ['get', 'index'], 5],
         layout: {
           'text-field': ['concat', ['round', ['*', ['get', 'ele'], 3.28084]], ' ft'],
           'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-          'text-size': 10,
+          'text-size': ['interpolate', ['linear'], ['zoom'], 11, 9, 14, 11, 16, 13],
           'symbol-placement': 'line',
           'text-rotation-alignment': 'map'
         },
         paint: {
-          'text-color': '#8B4513',
-          'text-halo-color': 'rgba(255, 255, 255, 0.8)',
+          'text-color': '#D4943C',
+          'text-halo-color': 'rgba(0, 0, 0, 0.7)',
           'text-halo-width': 1.5,
-          'text-opacity': 0.8
+          'text-opacity': 0.9
         }
       });
 
-      console.log('Topographic contour lines added');
+      console.log('Topographic contour lines added successfully');
     } catch (error) {
       console.error('Failed to add topographic contour lines:', error);
     }
   };
 
-  // Wait for style to be loaded before adding layers
   if (map.isStyleLoaded()) {
     addLayers();
     return {};
   } else {
-    // Use map.on instead of map.once so we can cancel it
-    // Create self-removing wrapper that we can also cancel manually
     const wrapper = () => {
+      map.off('style.load', wrapper);
+      map.off('idle', idleWrapper);
       addLayers();
-      map.off('styledata', wrapper);
     };
-    
-    map.on('styledata', wrapper);
-    
-    // Return cleanup function that removes the listener
+    const idleWrapper = () => {
+      map.off('style.load', wrapper);
+      map.off('idle', idleWrapper);
+      addLayers();
+    };
+
+    map.on('style.load', wrapper);
+    map.on('idle', idleWrapper);
+
     return {
       cleanup: () => {
-        map.off('styledata', wrapper);
+        map.off('style.load', wrapper);
+        map.off('idle', idleWrapper);
       }
     };
   }
