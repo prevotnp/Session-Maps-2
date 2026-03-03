@@ -204,7 +204,7 @@ const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
                         </div>
                         <Satellite className="h-4 w-4 text-sky-400" />
                         <div className="flex flex-col">
-                          <span className="text-sm text-white">ESRI HD Satellite</span>
+                          <span className="text-sm text-white">Alt Sat 2</span>
                           <span className="text-[10px] text-white/40">High-res overlay imagery</span>
                         </div>
                       </div>
