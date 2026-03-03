@@ -1,20 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-function extractApiKey(raw: string): string {
-  const match = raw.match(/sk-ant-[A-Za-z0-9_-]+/);
-  if (match) {
-    return match[0];
-  }
-  return raw.replace(/[^\x20-\x7E]/g, '').trim();
-}
-
 function getAnthropicClient(): Anthropic {
-  const rawApiKey = process.env.ANTHROPIC_API_KEY || '';
-  const apiKey = extractApiKey(rawApiKey);
-  if (apiKey.length !== rawApiKey.length) {
-    console.log(`[AI Route Assist] Extracted API key (${apiKey.length} chars) from env var (${rawApiKey.length} chars)`);
-  }
-  return new Anthropic({ apiKey });
+  const rawApiKey = (process.env.ANTHROPIC_API_KEY || '').trim();
+  console.log(`[AI Route Assist] API key: length=${rawApiKey.length}, starts="${rawApiKey.substring(0, 10)}...", ends="...${rawApiKey.substring(rawApiKey.length - 5)}"`);
+  return new Anthropic({ apiKey: rawApiKey });
 }
 
 const OVERPASS_ENDPOINTS = [
