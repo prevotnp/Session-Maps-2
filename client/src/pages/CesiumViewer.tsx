@@ -233,90 +233,131 @@ export default function CesiumViewer() {
         ];
         controller.tiltEventTypes = [
           C.CameraEventType.MIDDLE_DRAG,
-          C.CameraEventType.LEFT_DRAG,
+          { eventType: C.CameraEventType.PINCH, modifier: undefined },
         ];
         controller.rotateEventTypes = [C.CameraEventType.LEFT_DRAG];
         controller.lookEventTypes = [];
         controller.enableLook = false;
 
+        const tilesetUp = C.Cartesian3.normalize(
+          tilesetCenter.clone(), new C.Cartesian3()
+        );
+
+        const maxAngleFromUp = C.Math.toRadians(85);
+        const maxDistance = boundingSphere.radius * 6;
+        const minDistance = 2.0;
+
+        let isCorrectingCamera = false;
+
         viewer.scene.preRender.addEventListener(() => {
-          const camera = viewer.camera;
+          if (isCorrectingCamera) return;
+          if (!viewer || viewer.isDestroyed()) return;
 
-          const minPitch = -Math.PI / 2;
-          const maxPitch = Math.PI * 0.028;
-          let needsOrientationFix = false;
-          let correctedPitch = camera.pitch;
-          let correctedRoll = camera.roll;
+          isCorrectingCamera = true;
 
-          if (camera.pitch > maxPitch) {
-            correctedPitch = maxPitch;
-            needsOrientationFix = true;
-          }
-          if (camera.pitch < minPitch) {
-            correctedPitch = minPitch;
-            needsOrientationFix = true;
-          }
-          if (Math.abs(camera.roll) > 0.01) {
-            correctedRoll = 0;
-            needsOrientationFix = true;
-          }
+          try {
+            const camera = viewer.camera;
+            const cameraPosition = camera.positionWC;
+            let needsFix = false;
+            let newPosition = cameraPosition;
 
-          if (needsOrientationFix) {
-            camera.setView({
-              orientation: {
-                heading: camera.heading,
-                pitch: correctedPitch,
-                roll: 0,
-              },
-            });
-          }
-
-          const maxDistanceFromCenter = boundingSphere.radius * 6;
-          const cameraPosition = camera.positionWC;
-          const distanceFromCenter = C.Cartesian3.distance(cameraPosition, tilesetCenter);
-
-          if (distanceFromCenter > maxDistanceFromCenter) {
-            const direction = C.Cartesian3.subtract(
-              tilesetCenter, cameraPosition, new C.Cartesian3()
+            const centerToCamera = C.Cartesian3.subtract(
+              cameraPosition, tilesetCenter, new C.Cartesian3()
             );
-            C.Cartesian3.normalize(direction, direction);
-            const pullBack = distanceFromCenter - maxDistanceFromCenter;
-            const offset = C.Cartesian3.multiplyByScalar(
-              direction, pullBack + 1, new C.Cartesian3()
-            );
-            const correctedPos = C.Cartesian3.add(
-              cameraPosition, offset, new C.Cartesian3()
+            const distanceFromCenter = C.Cartesian3.magnitude(centerToCamera);
+
+            const centerToCameraDir = C.Cartesian3.normalize(
+              centerToCamera, new C.Cartesian3()
             );
 
-            camera.setView({
-              destination: correctedPos,
-              orientation: {
-                heading: camera.heading,
-                pitch: camera.pitch,
-                roll: 0,
-              },
-            });
-          }
+            const dotProduct = C.Cartesian3.dot(tilesetUp, centerToCameraDir);
+            const cosMinAllowed = Math.cos(maxAngleFromUp);
 
-          const centerCartographic = C.Cartographic.fromCartesian(tilesetCenter);
-          const approxGroundHeight = centerCartographic.height - (boundingSphere.radius * 0.5);
-          const minimumHeight = approxGroundHeight + MIN_CAMERA_HEIGHT;
+            if (dotProduct < cosMinAllowed) {
+              const upComponent = C.Cartesian3.multiplyByScalar(
+                tilesetUp, C.Cartesian3.dot(centerToCamera, tilesetUp), new C.Cartesian3()
+              );
+              const lateralComponent = C.Cartesian3.subtract(
+                centerToCamera, upComponent, new C.Cartesian3()
+              );
 
-          const camCartographic = camera.positionCartographic;
-          if (camCartographic.height < minimumHeight) {
-            const correctedPosition = C.Cartesian3.fromRadians(
-              camCartographic.longitude,
-              camCartographic.latitude,
-              minimumHeight
-            );
-            camera.setView({
-              destination: correctedPosition,
-              orientation: {
-                heading: camera.heading,
-                pitch: camera.pitch,
-                roll: 0,
-              },
-            });
+              const lateralMag = C.Cartesian3.magnitude(lateralComponent);
+
+              if (lateralMag > 0.001) {
+                const lateralDir = C.Cartesian3.normalize(lateralComponent, new C.Cartesian3());
+                const newUpMag = distanceFromCenter * Math.cos(maxAngleFromUp);
+                const newLateralMag = distanceFromCenter * Math.sin(maxAngleFromUp);
+
+                const newUp = C.Cartesian3.multiplyByScalar(tilesetUp, newUpMag, new C.Cartesian3());
+                const newLateral = C.Cartesian3.multiplyByScalar(lateralDir, newLateralMag, new C.Cartesian3());
+
+                newPosition = C.Cartesian3.add(
+                  tilesetCenter,
+                  C.Cartesian3.add(newUp, newLateral, new C.Cartesian3()),
+                  new C.Cartesian3()
+                );
+              } else {
+                const arbitraryLateral = new C.Cartesian3(1, 0, 0);
+                const crossDir = C.Cartesian3.cross(tilesetUp, arbitraryLateral, new C.Cartesian3());
+                C.Cartesian3.normalize(crossDir, crossDir);
+
+                const newUpMag = distanceFromCenter * Math.cos(maxAngleFromUp);
+                const newLateralMag = distanceFromCenter * Math.sin(maxAngleFromUp);
+
+                const newUp = C.Cartesian3.multiplyByScalar(tilesetUp, newUpMag, new C.Cartesian3());
+                const newLateral = C.Cartesian3.multiplyByScalar(crossDir, newLateralMag, new C.Cartesian3());
+
+                newPosition = C.Cartesian3.add(
+                  tilesetCenter,
+                  C.Cartesian3.add(newUp, newLateral, new C.Cartesian3()),
+                  new C.Cartesian3()
+                );
+              }
+              needsFix = true;
+            }
+
+            if (distanceFromCenter > maxDistance) {
+              const dir = C.Cartesian3.normalize(
+                C.Cartesian3.subtract(newPosition, tilesetCenter, new C.Cartesian3()),
+                new C.Cartesian3()
+              );
+              newPosition = C.Cartesian3.add(
+                tilesetCenter,
+                C.Cartesian3.multiplyByScalar(dir, maxDistance, new C.Cartesian3()),
+                new C.Cartesian3()
+              );
+              needsFix = true;
+            }
+
+            if (distanceFromCenter < minDistance) {
+              const dir = C.Cartesian3.normalize(
+                C.Cartesian3.subtract(newPosition, tilesetCenter, new C.Cartesian3()),
+                new C.Cartesian3()
+              );
+              newPosition = C.Cartesian3.add(
+                tilesetCenter,
+                C.Cartesian3.multiplyByScalar(dir, minDistance, new C.Cartesian3()),
+                new C.Cartesian3()
+              );
+              needsFix = true;
+            }
+
+            if (Math.abs(camera.roll) > 0.01) {
+              needsFix = true;
+            }
+
+            if (needsFix) {
+              camera.setView({
+                destination: newPosition,
+                orientation: {
+                  heading: camera.heading,
+                  pitch: camera.pitch,
+                  roll: 0,
+                },
+              });
+            }
+          } finally {
+            isCorrectingCamera = false;
           }
         });
 
