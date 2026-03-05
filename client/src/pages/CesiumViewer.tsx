@@ -181,15 +181,7 @@ export default function CesiumViewer() {
         });
 
         viewer.scene.backgroundColor = C.Color.fromCssColorString('#1a1a2e');
-
-        viewer.scene.globe.show = true;
-        viewer.scene.globe.baseColor = C.Color.fromCssColorString('#1a1a2e');
-        viewer.scene.globe.enableLighting = false;
-        viewer.scene.globe.showGroundAtmosphere = false;
-        viewer.scene.globe.depthTestAgainstTerrain = false;
-
-        viewer.imageryLayers.removeAll();
-
+        viewer.scene.globe.show = false;
         if (viewer.scene.sun) viewer.scene.sun.show = false;
         if (viewer.scene.moon) viewer.scene.moon.show = false;
         if (viewer.scene.skyBox) viewer.scene.skyBox.show = false;
@@ -231,59 +223,17 @@ export default function CesiumViewer() {
         (viewerRef as any).__tilesetRadius = boundingSphere.radius;
 
         const controller = viewer.scene.screenSpaceCameraController;
-        controller.enableCollisionDetection = true;
         controller.minimumZoomDistance = Math.max(2.0, boundingSphere.radius * 0.1);
-        controller.maximumZoomDistance = boundingSphere.radius * 4;
+        controller.maximumZoomDistance = boundingSphere.radius * 6;
         controller.enableLook = false;
-        controller.lookEventTypes = [];
 
-        controller.rotateEventTypes = [C.CameraEventType.LEFT_DRAG];
-        controller.zoomEventTypes = [
-          C.CameraEventType.RIGHT_DRAG,
-          C.CameraEventType.WHEEL,
-          C.CameraEventType.PINCH,
-        ];
-        controller.tiltEventTypes = [
-          C.CameraEventType.MIDDLE_DRAG,
-          { eventType: C.CameraEventType.PINCH, modifier: undefined },
-        ];
-
-        viewer.scene.preRender.addEventListener(() => {
-          if (!viewer || viewer.isDestroyed()) return;
-          const camera = viewer.camera;
-
-          if (Math.abs(camera.roll) > 0.01) {
-            camera.setView({
-              orientation: {
-                heading: camera.heading,
-                pitch: camera.pitch,
-                roll: 0,
-              },
-            });
-          }
-
-          const dist = C.Cartesian3.distance(camera.positionWC, tilesetCenter);
-          const maxLeash = boundingSphere.radius * 5;
-          if (dist > maxLeash) {
-            const dir = C.Cartesian3.subtract(
-              camera.positionWC, tilesetCenter, new C.Cartesian3()
-            );
-            C.Cartesian3.normalize(dir, dir);
-            const corrected = C.Cartesian3.add(
-              tilesetCenter,
-              C.Cartesian3.multiplyByScalar(dir, maxLeash, new C.Cartesian3()),
-              new C.Cartesian3()
-            );
-            camera.setView({
-              destination: corrected,
-              orientation: {
-                heading: camera.heading,
-                pitch: camera.pitch,
-                roll: 0,
-              },
-            });
-          }
-        });
+        const center = boundingSphere.center;
+        const radius = boundingSphere.radius;
+        const transform = C.Transforms.eastNorthUpToFixedFrame(center);
+        viewer.camera.lookAtTransform(
+          transform,
+          new C.HeadingPitchRange(0, C.Math.toRadians(-45), radius * 2.5)
+        );
 
         viewer.scene.requestRender();
 
@@ -506,85 +456,42 @@ export default function CesiumViewer() {
     });
   }, [gpsPosition]);
 
-  const recenterView = useCallback(() => {
-    if (!viewerRef.current || !Cesium) return;
-    const viewer = viewerRef.current;
-    const savedState = (viewerRef as any).__initialCameraState;
-    const tilesetCenter = (viewerRef as any).__tilesetCenter;
-    const tilesetRadius = (viewerRef as any).__tilesetRadius;
-
-    if (savedState) {
-      viewer.camera.flyTo({
-        destination: savedState.position,
-        orientation: {
-          heading: savedState.heading,
-          pitch: savedState.pitch,
-          roll: 0,
-        },
-        duration: 1.2,
-      });
-    } else if (tilesetRef.current) {
-      const center = Cesium.Cartographic.fromCartesian(tilesetCenter || tilesetRef.current.boundingSphere.center);
-      const radius = tilesetRadius || tilesetRef.current.boundingSphere.radius;
-      viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromRadians(
-          center.longitude,
-          center.latitude,
-          center.height + radius * 2.5
-        ),
-        orientation: {
-          heading: 0,
-          pitch: Cesium.Math.toRadians(-45),
-          roll: 0,
-        },
-        duration: 1.2,
-      });
-    }
+  const recenterView = useCallback(async () => {
+    if (!viewerRef.current || !tilesetRef.current) return;
+    const C = await loadCesium();
+    const radius = (viewerRef as any).__tilesetRadius || tilesetRef.current.boundingSphere.radius;
+    const center = (viewerRef as any).__tilesetCenter || tilesetRef.current.boundingSphere.center;
+    const transform = C.Transforms.eastNorthUpToFixedFrame(center);
+    viewerRef.current.camera.flyToBoundingSphere(
+      new C.BoundingSphere(center, radius),
+      { duration: 1.0, offset: new C.HeadingPitchRange(0, C.Math.toRadians(-45), radius * 2.5) }
+    );
   }, []);
 
   const zoomIn = useCallback(() => {
     if (!viewerRef.current) return;
-    const camera = viewerRef.current.camera;
-    const currentHeight = camera.positionCartographic.height;
-    const zoomAmount = currentHeight * 0.3;
-    const newHeight = currentHeight - zoomAmount;
-
-    if (newHeight >= MIN_CAMERA_HEIGHT) {
-      camera.zoomIn(zoomAmount);
-    } else if (currentHeight > MIN_CAMERA_HEIGHT) {
-      camera.zoomIn(currentHeight - MIN_CAMERA_HEIGHT);
-    }
+    viewerRef.current.camera.zoomIn(viewerRef.current.camera.positionCartographic.height * 0.25);
     viewerRef.current.scene.requestRender();
   }, []);
 
   const zoomOut = useCallback(() => {
     if (!viewerRef.current) return;
-    const camera = viewerRef.current.camera;
-    const currentHeight = camera.positionCartographic.height;
-    const zoomAmount = currentHeight * 0.3;
-    const newHeight = currentHeight + zoomAmount;
-
-    if (newHeight <= MAX_CAMERA_HEIGHT) {
-      camera.zoomOut(zoomAmount);
-    } else if (currentHeight < MAX_CAMERA_HEIGHT) {
-      camera.zoomOut(MAX_CAMERA_HEIGHT - currentHeight);
-    }
+    viewerRef.current.camera.zoomOut(viewerRef.current.camera.positionCartographic.height * 0.25);
     viewerRef.current.scene.requestRender();
   }, []);
 
-  const lookNorth = useCallback(() => {
-    if (!viewerRef.current || !Cesium) return;
+  const lookNorth = useCallback(async () => {
+    if (!viewerRef.current) return;
+    const C = await loadCesium();
     const camera = viewerRef.current.camera;
-
-    camera.flyTo({
-      destination: camera.position.clone(),
-      orientation: {
-        heading: 0,
-        pitch: camera.pitch,
-        roll: 0,
-      },
-      duration: 0.5,
-    });
+    const center = (viewerRef as any).__tilesetCenter;
+    const dist = C.Cartesian3.distance(camera.positionWC, center);
+    const transform = C.Transforms.eastNorthUpToFixedFrame(center);
+    camera.lookAtTransform(
+      transform,
+      new C.HeadingPitchRange(0, camera.pitch, dist)
+    );
+    viewerRef.current.scene.requestRender();
   }, []);
 
   const toggleMapOverlay = useCallback(async () => {
