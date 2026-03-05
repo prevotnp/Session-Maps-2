@@ -227,14 +227,6 @@ export default function CesiumViewer() {
         controller.maximumZoomDistance = boundingSphere.radius * 6;
         controller.enableLook = false;
 
-        const center = boundingSphere.center;
-        const radius = boundingSphere.radius;
-        const transform = C.Transforms.eastNorthUpToFixedFrame(center);
-        viewer.camera.lookAtTransform(
-          transform,
-          new C.HeadingPitchRange(0, C.Math.toRadians(-45), radius * 2.5)
-        );
-
         viewer.scene.requestRender();
 
         setIsLoading(false);
@@ -456,16 +448,9 @@ export default function CesiumViewer() {
     });
   }, [gpsPosition]);
 
-  const recenterView = useCallback(async () => {
+  const recenterView = useCallback(() => {
     if (!viewerRef.current || !tilesetRef.current) return;
-    const C = await loadCesium();
-    const radius = (viewerRef as any).__tilesetRadius || tilesetRef.current.boundingSphere.radius;
-    const center = (viewerRef as any).__tilesetCenter || tilesetRef.current.boundingSphere.center;
-    const transform = C.Transforms.eastNorthUpToFixedFrame(center);
-    viewerRef.current.camera.flyToBoundingSphere(
-      new C.BoundingSphere(center, radius),
-      { duration: 1.0, offset: new C.HeadingPitchRange(0, C.Math.toRadians(-45), radius * 2.5) }
-    );
+    viewerRef.current.zoomTo(tilesetRef.current);
   }, []);
 
   const zoomIn = useCallback(() => {
@@ -480,17 +465,16 @@ export default function CesiumViewer() {
     viewerRef.current.scene.requestRender();
   }, []);
 
-  const lookNorth = useCallback(async () => {
-    if (!viewerRef.current) return;
-    const C = await loadCesium();
+  const lookNorth = useCallback(() => {
+    if (!viewerRef.current || !Cesium) return;
     const camera = viewerRef.current.camera;
-    const center = (viewerRef as any).__tilesetCenter;
-    const dist = C.Cartesian3.distance(camera.positionWC, center);
-    const transform = C.Transforms.eastNorthUpToFixedFrame(center);
-    camera.lookAtTransform(
-      transform,
-      new C.HeadingPitchRange(0, camera.pitch, dist)
-    );
+    camera.setView({
+      orientation: {
+        heading: 0,
+        pitch: camera.pitch,
+        roll: 0,
+      },
+    });
     viewerRef.current.scene.requestRender();
   }, []);
 
