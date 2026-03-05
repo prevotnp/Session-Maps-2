@@ -392,11 +392,11 @@ const DroneImageryModal: React.FC<DroneImageryModalProps> = ({ isOpen, onClose, 
   };
 
   const uploadFiles = async (files: FileList) => {
-    const firstFile = files[0];
+    const totalSize = Array.from(files).reduce((sum, file) => sum + file.size, 0);
     setUploadState({
       isUploading: true,
-      fileName: firstFile.name,
-      fileSize: firstFile.size,
+      fileName: files.length === 1 ? files[0].name : `${files.length} files`,
+      fileSize: totalSize,
       bytesUploaded: 0
     });
 
