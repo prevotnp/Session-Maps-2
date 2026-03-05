@@ -1648,10 +1648,21 @@ const MapView: React.FC<MapViewProps> = ({
       
       {/* Drone Imagery Loading Indicator */}
       {isDroneImageryLoading && (
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-dark/95 backdrop-blur-sm rounded-xl shadow-2xl border border-green-500/30 px-6 py-3 animate-in fade-in duration-300">
-          <div className="flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-white font-medium">Loading drone imagery...</span>
+        <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="bg-dark/95 backdrop-blur-md rounded-2xl shadow-2xl border border-green-500/30 px-10 py-8 animate-in fade-in duration-300 pointer-events-auto">
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative w-14 h-14">
+                <div className="absolute inset-0 border-4 border-green-500/20 rounded-full" />
+                <div className="absolute inset-0 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+                <svg className="absolute inset-0 m-auto w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div className="text-center">
+                <p className="text-white font-semibold text-base">Loading Drone Imagery...</p>
+                <p className="text-white/50 text-xs mt-1">Large files may take a moment</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
