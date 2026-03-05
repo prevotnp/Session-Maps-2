@@ -45,7 +45,7 @@ export async function generateTilesFromImage(
 
   const wgs84File = `/tmp/drone_${imageId}_wgs84.tif`;
   try {
-    execSync(`gdalwarp -t_srs EPSG:4326 -of GTiff -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 "${imagePath}" "${wgs84File}"`, { timeout: 120000 });
+    execSync(`gdalwarp -t_srs EPSG:4326 -of GTiff -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 "${imagePath}" "${wgs84File}"`, { timeout: 600000 });
   } catch (err: any) {
     console.error('Reprojection failed:', err.message?.substring(0, 200));
     throw new Error('Failed to reproject GeoTIFF to WGS84');
