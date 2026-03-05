@@ -99,24 +99,44 @@ export function calculateSegmentDistances(points: [number, number][]): number[] 
   return distances;
 }
 
-// Fetch elevation data from Mapbox Terrain API
+// Fetch elevation data from Open-Meteo DEM API (accurate to ~1-5m vs Mapbox contour's ~10m intervals)
 export async function getElevation(lng: number, lat: number): Promise<number | null> {
   try {
-    const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
     const response = await fetch(
-      `https://api.mapbox.com/v4/mapbox.mapbox-terrain-v2/tilequery/${lng},${lat}.json?layers=contour&limit=1&access_token=${token}`
+      `/api/proxy/elevation?latitude=${lat.toFixed(6)}&longitude=${lng.toFixed(6)}`,
+      { credentials: 'include' }
     );
-    
+
     if (!response.ok) return null;
-    
+
     const data = await response.json();
-    if (data.features && data.features.length > 0) {
-      return data.features[0].properties.ele || null;
+    if (data.elevation && data.elevation.length > 0) {
+      return data.elevation[0];
     }
     return null;
   } catch (error) {
     console.error('Error fetching elevation:', error);
     return null;
+  }
+}
+
+// Batch fetch elevations for multiple coordinates (single API call)
+export async function getBatchElevations(coordinates: [number, number][]): Promise<number[]> {
+  try {
+    const response = await fetch('/api/proxy/elevation/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ coordinates }),
+    });
+
+    if (!response.ok) return coordinates.map(() => 0);
+
+    const data = await response.json();
+    return data.elevation || coordinates.map(() => 0);
+  } catch (error) {
+    console.error('Error fetching batch elevations:', error);
+    return coordinates.map(() => 0);
   }
 }
 
@@ -130,18 +150,14 @@ export async function calculateElevationChange(points: [number, number][]): Prom
     return { elevations: [], totalChange: null, netChange: null };
   }
 
-  const elevations: (number | null)[] = [];
-  
-  // Fetch elevation for each point
-  for (const [lng, lat] of points) {
-    const elevation = await getElevation(lng, lat);
-    elevations.push(elevation);
-  }
+  // Fetch all elevations in a single batch call
+  const rawElevations = await getBatchElevations(points);
+  const elevations: (number | null)[] = rawElevations.map(e => e ?? null);
 
   // Calculate total elevation change (sum of all ups and downs)
   let totalChange = 0;
   let validElevations = 0;
-  
+
   for (let i = 1; i < elevations.length; i++) {
     const prev = elevations[i - 1];
     const curr = elevations[i];
@@ -154,8 +170,8 @@ export async function calculateElevationChange(points: [number, number][]): Prom
   // Calculate net elevation change (end - start)
   const startElevation = elevations.find(e => e !== null);
   const endElevation = elevations[elevations.length - 1];
-  const netChange = (startElevation !== null && endElevation !== null && startElevation !== undefined) 
-    ? endElevation - startElevation 
+  const netChange = (startElevation !== null && endElevation !== null && startElevation !== undefined)
+    ? endElevation - startElevation
     : null;
 
   return {

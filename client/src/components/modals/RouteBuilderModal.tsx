@@ -971,50 +971,47 @@ export default function RouteBuilderModal({
     return R * c;
   };
 
-  // Calculate elevation gain/loss using Mapbox Tilequery API
+  // Calculate elevation gain/loss using Open-Meteo DEM data via batch API
   const calculateElevationData = async (coordinates: [number, number][]) => {
     try {
-      // Smart sampling: take at most 50 evenly distributed points, always including start and end
-      const maxSamples = 50;
+      // Smart sampling: take at most 100 evenly distributed points, always including start and end
+      const maxSamples = 100;
       let sampledCoords: [number, number][] = [];
-      
+
       if (coordinates.length <= maxSamples) {
-        // Use all coordinates if we have fewer than max
         sampledCoords = coordinates;
       } else {
-        // Sample evenly across the route
         const step = (coordinates.length - 1) / (maxSamples - 1);
         for (let i = 0; i < maxSamples; i++) {
           const index = Math.round(i * step);
           sampledCoords.push(coordinates[index]);
         }
       }
-      
+
+      const response = await fetch('/api/proxy/elevation/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ coordinates: sampledCoords }),
+      });
+
+      if (!response.ok) {
+        console.error('Batch elevation API error:', response.status);
+        return { gain: 0, loss: 0 };
+      }
+
+      const data = await response.json();
+      const elevations: number[] = data.elevation || [];
+
       let totalGain = 0;
       let totalLoss = 0;
-      let previousElevation: number | null = null;
 
-      for (const coord of sampledCoords) {
-        try {
-          const elevationUrl = `https://api.mapbox.com/v4/mapbox.mapbox-terrain-v2/tilequery/${coord[0]},${coord[1]}.json?layers=contour&limit=50&access_token=${import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}`;
-          const response = await fetch(elevationUrl);
-          const data = await response.json();
-          
-          if (data.features && data.features.length > 0) {
-            const elevation = data.features[0].properties.ele || 0;
-            
-            if (previousElevation !== null) {
-              const elevationChange = elevation - previousElevation;
-              if (elevationChange > 0) {
-                totalGain += elevationChange;
-              } else {
-                totalLoss += Math.abs(elevationChange);
-              }
-            }
-            previousElevation = elevation;
-          }
-        } catch (error) {
-          console.error('Error fetching elevation for coordinate:', coord, error);
+      for (let i = 1; i < elevations.length; i++) {
+        const diff = elevations[i] - elevations[i - 1];
+        if (diff > 0) {
+          totalGain += diff;
+        } else {
+          totalLoss += Math.abs(diff);
         }
       }
 

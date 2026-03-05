@@ -2938,8 +2938,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         coordinates: pathCoordinates,
         distance: summary.distance,
         duration: summary.duration,
-        elevationGain: Math.round(elevationGain),
-        elevationLoss: Math.round(elevationLoss),
+        elevationGain: Math.round(elevationGain * 10) / 10,
+        elevationLoss: Math.round(elevationLoss * 10) / 10,
         source: 'openrouteservice'
       });
 
@@ -3053,8 +3053,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         coordinates: pathCoordinates,
         distance: summary.distance,
         duration: summary.duration,
-        elevationGain: Math.round(elevationGain),
-        elevationLoss: Math.round(elevationLoss),
+        elevationGain: Math.round(elevationGain * 10) / 10,
+        elevationLoss: Math.round(elevationLoss * 10) / 10,
         profile,
         source: 'openrouteservice'
       });
@@ -5515,6 +5515,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Elevation proxy error:', error);
       res.status(500).json({ error: "Failed to fetch elevation data" });
+    }
+  });
+
+  // Batch elevation lookup using Open-Meteo DEM data (much more accurate than Mapbox contour tilequery)
+  app.post("/api/proxy/elevation/batch", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { coordinates } = req.body;
+      if (!Array.isArray(coordinates) || coordinates.length === 0) {
+        return res.status(400).json({ error: "Missing or empty coordinates array" });
+      }
+
+      // Open-Meteo supports up to 100 points per request
+      const maxPerRequest = 100;
+      const allElevations: number[] = [];
+
+      for (let i = 0; i < coordinates.length; i += maxPerRequest) {
+        const batch = coordinates.slice(i, i + maxPerRequest);
+        const latitudes = batch.map((c: [number, number]) => c[1].toFixed(6)).join(',');
+        const longitudes = batch.map((c: [number, number]) => c[0].toFixed(6)).join(',');
+
+        const response = await fetch(
+          `https://api.open-meteo.com/v1/elevation?latitude=${latitudes}&longitude=${longitudes}`
+        );
+
+        if (!response.ok) {
+          return res.status(502).json({ error: `Open-Meteo API error: ${response.status}` });
+        }
+
+        const data = await response.json();
+        allElevations.push(...(data.elevation || []));
+      }
+
+      res.json({ elevation: allElevations });
+    } catch (error) {
+      console.error('Batch elevation proxy error:', error);
+      res.status(500).json({ error: "Failed to fetch batch elevation data" });
     }
   });
 

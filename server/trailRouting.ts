@@ -528,8 +528,8 @@ async function fetchElevationForCoordinates(coordinates: [number, number][]): Pr
     }
 
     return {
-      elevationGain: Math.round(elevationGain),
-      elevationLoss: Math.round(elevationLoss)
+      elevationGain: Math.round(elevationGain * 10) / 10,
+      elevationLoss: Math.round(elevationLoss * 10) / 10
     };
   } catch (error) {
     console.log(`Elevation fetch failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
