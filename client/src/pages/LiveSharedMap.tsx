@@ -1713,20 +1713,21 @@ export default function LiveSharedMap() {
   }
   
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-gray-900">
+    <div className="h-screen overflow-hidden flex flex-col bg-gray-900" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       {/* Session Ended Banner */}
       {isSessionEnded && (
-        <div className="bg-amber-600 text-white px-4 py-2 text-center text-sm flex items-center justify-center gap-2">
+        <div className="bg-amber-600 text-white px-4 py-2 text-center text-sm flex items-center justify-center gap-2" style={{ paddingTop: 'max(8px, env(safe-area-inset-top, 8px))' }}>
           <Eye className="w-4 h-4" />
           This session has ended. You are viewing a read-only archive.
         </div>
       )}
       
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700 z-10">
-        <Button variant="destructive" className="h-9 px-3 rounded-full text-white font-medium shrink-0" onClick={() => setLocation("/")}>
-          <ArrowLeft className="w-4 h-4 mr-1.5" />
-          Exit Team Map
+      <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700 z-10 relative">
+        <div className="absolute left-0 right-0 bg-gray-800" style={{ top: 'calc(-1 * env(safe-area-inset-top, 0px))', height: 'env(safe-area-inset-top, 0px)' }} />
+        <Button variant="destructive" className="h-9 px-2 sm:px-3 rounded-full text-white font-medium shrink-0" onClick={() => setLocation("/")}>
+          <ArrowLeft className="w-4 h-4 sm:mr-1.5" />
+          <span className="hidden sm:inline">Exit Team Map</span>
         </Button>
 
         <div className="flex-1 flex flex-col items-center justify-center min-w-0">
@@ -1755,8 +1756,8 @@ export default function LiveSharedMap() {
               onClick={() => setLocation("/")}
               data-testid="button-back-home"
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Map
+              <ArrowLeft className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Back to Map</span>
             </Button>
           ) : isOwner ? (
             <Button 
@@ -1765,8 +1766,8 @@ export default function LiveSharedMap() {
               onClick={() => deleteMutation.mutate()}
               data-testid="button-end-session"
             >
-              <Trash2 className="w-4 h-4 mr-2" />
-              End Session
+              <Trash2 className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">End Session</span>
             </Button>
           ) : (
             <Button 
@@ -1775,8 +1776,8 @@ export default function LiveSharedMap() {
               onClick={() => leaveMutation.mutate()}
               data-testid="button-leave-session"
             >
-              <LogOut className="w-4 h-4 mr-2" />
-              Leave
+              <LogOut className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Leave</span>
             </Button>
           )}
         </div>
