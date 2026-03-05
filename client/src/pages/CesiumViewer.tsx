@@ -20,9 +20,11 @@ import {
   List,
   Mountain,
   Loader2,
-  Home
+  Home,
+  Sparkles
 } from 'lucide-react';
 import CesiumRouteBuilder from '@/components/CesiumRouteBuilder';
+import AIRouteAssistPanel from '@/components/AIRouteAssistPanel';
 
 import CesiumRouteSummaryPanel from '@/components/CesiumRouteSummaryPanel';
 import type { Route } from '@shared/schema';
@@ -106,6 +108,7 @@ export default function CesiumViewer() {
   const [mapOverlayLoading, setMapOverlayLoading] = useState(false);
 
   const [isRouteBuilderOpen, setIsRouteBuilderOpen] = useState(false);
+  const [isAIAssistOpen, setIsAIAssistOpen] = useState(false);
   const [showControlHints, setShowControlHints] = useState(true);
   const [isRoutesListOpen, setIsRoutesListOpen] = useState(false);
   const [viewingRoute, setViewingRoute] = useState<Route | null>(null);
@@ -1005,6 +1008,14 @@ export default function CesiumViewer() {
           </span>
         </button>
 
+        <button
+          className={`flex flex-col items-center justify-center w-16 h-16 rounded-lg bg-gray-900/80 border text-white hover:bg-gray-800 transition-colors ${isAIAssistOpen ? 'ring-2 ring-yellow-400 border-yellow-400' : 'border-white/20'}`}
+          onClick={() => setIsAIAssistOpen(!isAIAssistOpen)}
+        >
+          <Sparkles className={`w-5 h-5 mb-0.5 ${isAIAssistOpen ? 'text-yellow-400' : 'text-yellow-300'}`} />
+          <span className="text-[10px] font-medium leading-tight text-center whitespace-pre-line">{'AI\nAssist'}</span>
+        </button>
+
         <div className="border-t border-white/10 pt-1.5 flex flex-col gap-1.5 w-full">
           <div className="flex gap-1.5 justify-end">
             <Button
@@ -1098,6 +1109,19 @@ export default function CesiumViewer() {
           isOwner={viewingRoute.userId === user?.id}
         />
       )}
+
+      <AIRouteAssistPanel
+        isOpen={isAIAssistOpen}
+        onClose={() => setIsAIAssistOpen(false)}
+        mapCenter={viewerRef.current ? (() => {
+          try {
+            const carto = viewerRef.current!.camera.positionCartographic;
+            return { lat: carto.latitude * 180 / Math.PI, lng: carto.longitude * 180 / Math.PI };
+          } catch { return null; }
+        })() : null}
+        mapZoom={10}
+        onAddWaypoints={() => {}}
+      />
 
       {isRoutesListOpen && (
         <div className="absolute left-4 top-20 bottom-20 w-80 z-40 pointer-events-auto bg-gray-900/90 backdrop-blur-sm border border-white/20 rounded-lg overflow-hidden flex flex-col">

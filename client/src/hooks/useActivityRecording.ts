@@ -657,28 +657,95 @@ export function useActivityRecording() {
           clearPersistedRecordingState();
           wakeLock.release();
 
-          try {
-            const waypointsForRoute = currentState.waypoints.map(wp => ({
+          let waypointsForRoute: Array<{ name: string; lat: number; lng: number; elevation: number | null }> = [];
+
+          if (currentState.waypoints.length > 0) {
+            waypointsForRoute = currentState.waypoints.map(wp => ({
               name: wp.name,
               lat: wp.latitude,
               lng: wp.longitude,
-              elevation: wp.altitude,
+              elevation: wp.altitude || null,
             }));
+          } else {
+            const points = currentState.trackPoints;
+            if (points.length >= 2) {
+              waypointsForRoute.push({
+                name: 'Start',
+                lat: points[0].latitude,
+                lng: points[0].longitude,
+                elevation: points[0].altitude || null,
+              });
 
-            const routeRes = await fetch(`/api/activities/${(result as any).id}/save-as-route`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({ waypoints: waypointsForRoute }),
-            });
+              const MILE_IN_METERS = 1609.34;
+              let accumulatedDistance = 0;
+              let mileCount = 1;
 
-            if (!routeRes.ok) {
-              console.warn('Route creation returned non-OK status:', routeRes.status);
+              for (let i = 1; i < points.length; i++) {
+                const prev = points[i - 1];
+                const curr = points[i];
+                const R = 6371000;
+                const dLat = (curr.latitude - prev.latitude) * Math.PI / 180;
+                const dLon = (curr.longitude - prev.longitude) * Math.PI / 180;
+                const a = Math.sin(dLat / 2) ** 2 +
+                  Math.cos(prev.latitude * Math.PI / 180) * Math.cos(curr.latitude * Math.PI / 180) *
+                  Math.sin(dLon / 2) ** 2;
+                const segmentDist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                accumulatedDistance += segmentDist;
+
+                if (accumulatedDistance >= MILE_IN_METERS * mileCount) {
+                  waypointsForRoute.push({
+                    name: `Mile ${mileCount}`,
+                    lat: curr.latitude,
+                    lng: curr.longitude,
+                    elevation: curr.altitude || null,
+                  });
+                  mileCount++;
+                }
+              }
+
+              const lastPoint = points[points.length - 1];
+              waypointsForRoute.push({
+                name: 'End',
+                lat: lastPoint.latitude,
+                lng: lastPoint.longitude,
+                elevation: lastPoint.altitude || null,
+              });
+            }
+          }
+
+          let routeSaved = false;
+          for (let routeAttempt = 0; routeAttempt < 3; routeAttempt++) {
+            try {
+              const routeRes = await fetch(`/api/activities/${(result as any).id}/save-as-route`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ waypoints: waypointsForRoute }),
+              });
+
+              if (routeRes.ok) {
+                routeSaved = true;
+                queryClient.invalidateQueries({ queryKey: ['/api/routes'] });
+                break;
+              } else {
+                const errData = await routeRes.json().catch(() => ({}));
+                console.warn(`Route creation attempt ${routeAttempt + 1}/3 failed:`, routeRes.status, errData);
+              }
+            } catch (routeErr) {
+              console.warn(`Route creation attempt ${routeAttempt + 1}/3 error:`, routeErr);
             }
 
-            queryClient.invalidateQueries({ queryKey: ['/api/routes'] });
-          } catch (routeErr) {
-            console.warn('Activity saved but route creation failed:', routeErr);
+            if (routeAttempt < 2) {
+              await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+          }
+
+          if (!routeSaved) {
+            toast({
+              title: 'Activity saved',
+              description: 'Your activity was recorded but could not be added to your routes. You can manually create a route from the activity later.',
+              variant: 'destructive',
+            });
           }
 
           if (watchIdRef.current !== null) {

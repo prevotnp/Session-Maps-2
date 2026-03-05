@@ -5424,16 +5424,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const routeData = {
         userId: user.id,
-        name: activity.name,
-        description: `Recorded ${activity.activityType} activity on ${new Date(activity.startTime).toLocaleDateString()}`,
+        name: activity.name || `${activity.activityType} - ${new Date(activity.startTime).toLocaleDateString()}`,
+        description: `Recorded ${activity.activityType} on ${new Date(activity.startTime).toLocaleDateString()}. Distance: ${activity.distanceMeters ? (parseFloat(activity.distanceMeters) / 1609.34).toFixed(1) + ' mi' : 'unknown'}. Time: ${activity.elapsedTimeSeconds ? Math.round(activity.elapsedTimeSeconds / 60) + ' min' : 'unknown'}.`,
         waypointIds: JSON.stringify([]),
         pathCoordinates: pathCoordinates,
         waypointCoordinates: waypointCoordinates,
-        totalDistance: activity.distanceMeters,
-        elevationGain: activity.elevationGainMeters,
-        elevationLoss: activity.elevationLossMeters,
-        estimatedTime: activity.elapsedTimeSeconds ? Math.round(activity.elapsedTimeSeconds / 60) : null,
-        routingMode: "direct",
+        totalDistance: activity.distanceMeters || "0",
+        elevationGain: activity.elevationGainMeters || "0",
+        elevationLoss: activity.elevationLossMeters || "0",
+        estimatedTime: activity.elapsedTimeSeconds ? Math.round(activity.elapsedTimeSeconds / 60) : 0,
+        routingMode: "direct" as const,
         isPublic: activity.isPublic ?? false,
       };
 
