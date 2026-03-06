@@ -947,7 +947,7 @@ export default function CesiumViewer() {
         </div>
       </div>
 
-      <div className="absolute right-4 z-40 flex flex-col gap-1.5 items-end" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}>
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-1.5 items-end">
         <button
           className={`flex flex-col items-center justify-center w-16 h-16 rounded-lg bg-gray-900/80 border text-white hover:bg-gray-800 transition-colors ${isRouteBuilderOpen ? 'ring-2 ring-green-400 border-green-400' : 'border-white/20'}`}
           onClick={handleOpenRouteBuilder}
