@@ -1206,6 +1206,38 @@ export function addBaseTrailLinesAndLabels(map: mapboxgl.Map): void {
           }
         });
       }
+
+      if (!map.getLayer('peak-labels')) {
+        map.addLayer({
+          id: 'peak-labels',
+          type: 'symbol',
+          source: 'streets-labels',
+          'source-layer': 'natural_label',
+          filter: ['==', ['get', 'maki'], 'mountain'],
+          minzoom: 8,
+          layout: {
+            'text-field': [
+              'case',
+              ['has', 'elevation_m'],
+              ['concat', '▲ ', ['get', 'name'], '\n', ['to-string', ['round', ['*', ['get', 'elevation_m'], 3.28084]]], ' ft'],
+              ['concat', '▲ ', ['get', 'name']]
+            ],
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-size': { base: 1, stops: [[8, 11], [12, 13], [16, 15]] },
+            'text-anchor': 'top',
+            'text-offset': [0, 0.3],
+            'text-max-width': 10,
+            'text-allow-overlap': false,
+            'icon-allow-overlap': false
+          },
+          paint: {
+            'text-color': '#FFD700',
+            'text-halo-color': 'rgba(0, 0, 0, 0.85)',
+            'text-halo-width': 2,
+            'text-opacity': { stops: [[8, 0.7], [10, 0.9], [12, 1.0]] }
+          }
+        });
+      }
     } catch (error) {
       console.error('Base trail lines error:', error);
     }
