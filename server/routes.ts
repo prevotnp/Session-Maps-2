@@ -940,13 +940,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let totalSizeBytes = file.size;
 
       if (fileExt === '.zip') {
-        const { execSync } = await import('child_process');
+        const AdmZip = (await import('adm-zip')).default;
         const extractDir = path.join(modelUploadDir, `extracted-${Date.now()}`);
         fs.mkdirSync(extractDir, { recursive: true });
 
         try {
-          execSync(`unzip -o -j "${file.path}" -d "${extractDir}"`, { timeout: 120000 });
+          const zip = new AdmZip(file.path);
+          const entries = zip.getEntries();
+
+          for (const entry of entries) {
+            if (entry.isDirectory) continue;
+            const fileName = path.basename(entry.entryName);
+            if (fileName.startsWith('.') || fileName.startsWith('__MACOSX')) continue;
+            const destPath = path.join(extractDir, fileName);
+            fs.writeFileSync(destPath, entry.getData());
+          }
         } catch (unzipErr) {
+          console.error("ZIP extraction error:", unzipErr);
           fs.rmSync(extractDir, { recursive: true, force: true });
           fs.unlink(file.path, () => {});
           return res.status(400).json({ message: "Failed to extract ZIP file. Make sure it's a valid ZIP archive." });
