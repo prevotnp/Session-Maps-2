@@ -94,9 +94,13 @@ export default function DroneModelViewer() {
           throw new Error('Model data is incomplete');
         }
         
-        const fileUrl = model.filePath.includes('uploads/') 
-          ? `/api/drone-models/${model.filePath.split('/').pop()}`
-          : model.filePath;
+        let fileUrl = model.filePath;
+        if (model.filePath.includes('uploads/drone-models/')) {
+          const relativePath = model.filePath.split('uploads/drone-models/')[1];
+          fileUrl = `/api/drone-models/${relativePath}`;
+        } else if (model.filePath.includes('uploads/')) {
+          fileUrl = `/api/drone-models/${model.filePath.split('/').pop()}`;
+        }
         
         const fileType = model.fileType.toLowerCase();
         

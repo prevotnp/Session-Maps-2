@@ -311,34 +311,27 @@ const DroneImageryModal: React.FC<DroneImageryModalProps> = ({ isOpen, onClose, 
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.glb,.gltf,.obj,.ply,.zip,.ZIP';
-    input.multiple = true;
     input.onchange = async (e) => {
       const files = (e.target as HTMLInputElement).files;
       if (files && files.length > 0) {
-        await upload3DModel(droneImageId, Array.from(files));
+        await upload3DModel(droneImageId, files[0]);
       }
     };
     input.click();
   };
 
-  const upload3DModel = async (droneImageId: number, files: File[]) => {
+  const upload3DModel = async (droneImageId: number, file: File) => {
     setModelUploadingForId(droneImageId);
     
     const formData = new FormData();
     formData.append('droneImageId', droneImageId.toString());
+    formData.append('model', file);
 
-    if (files.length === 1) {
-      formData.append('model', files[0]);
-    } else {
-      for (const file of files) {
-        formData.append('model', file);
-      }
-    }
-
-    const totalSizeMB = (files.reduce((sum, f) => sum + f.size, 0) / (1024 * 1024)).toFixed(1);
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    const isZip = file.name.toLowerCase().endsWith('.zip');
     toast({
       title: "Uploading 3D Model",
-      description: `Uploading ${files.length} file${files.length > 1 ? 's' : ''} (${totalSizeMB} MB)...`,
+      description: `Uploading ${file.name} (${sizeMB} MB)...${isZip ? ' ZIP will be extracted automatically.' : ''}`,
     });
     
     try {
@@ -353,7 +346,7 @@ const DroneImageryModal: React.FC<DroneImageryModalProps> = ({ isOpen, onClose, 
         setDroneModels(prev => ({ ...prev, [droneImageId]: model }));
         toast({
           title: "3D Model Uploaded",
-          description: `${files.length} file${files.length > 1 ? 's' : ''} uploaded successfully.`,
+          description: "Your 3D model has been uploaded successfully.",
         });
       } else {
         const error = await response.json();

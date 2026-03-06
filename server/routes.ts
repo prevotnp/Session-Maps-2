@@ -112,13 +112,12 @@ const modelUpload = multer({
     fileSize: 5000 * 1024 * 1024, // 5GB limit per file
   },
   fileFilter: (req, file, cb) => {
-    // Allow 3D model files, material files, and texture files
-    const allowedTypes = ['.glb', '.gltf', '.obj', '.ply', '.mtl', '.jpg', '.jpeg', '.png', '.tif', '.tiff'];
+    const allowedTypes = ['.glb', '.gltf', '.obj', '.ply', '.mtl', '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.zip'];
     const fileExt = path.extname(file.originalname).toLowerCase();
     if (allowedTypes.includes(fileExt)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Allowed: GLB, GLTF, OBJ, PLY, MTL, and texture images.'));
+      cb(new Error('Invalid file type. Allowed: GLB, GLTF, OBJ, PLY, MTL, texture images, and ZIP archives.'));
     }
   }
 });
@@ -222,7 +221,7 @@ const tilesetMulterStorage = multer.diskStorage({
 
 const tilesetUpload = multer({
   storage: tilesetMulterStorage,
-  limits: { fileSize: 2000 * 1024 * 1024 }, // 2GB max
+  limits: { fileSize: 5000 * 1024 * 1024 }, // 5GB max
 });
 
 // Helper to validate and parse JSON requests
@@ -907,10 +906,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==========================================
   
   // Upload 3D model for a drone image (admin only)
-  app.post("/api/admin/drone-models/upload", isAdmin, modelUpload.array('model', 50), async (req, res) => {
+  app.post("/api/admin/drone-models/upload", isAdmin, modelUpload.single('model'), async (req, res) => {
     const user = req.user as any;
-    const files = req.files as Express.Multer.File[] | undefined;
-    const file = files && files.length > 0 ? files[0] : undefined;
+    const file = req.file;
     
     try {
       if (!file) {
@@ -920,24 +918,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { droneImageId, name, centerLat, centerLng, altitude } = req.body;
       
       if (!droneImageId) {
-        if (files) files.forEach(f => fs.unlink(f.path, () => {}));
+        fs.unlink(file.path, () => {});
         return res.status(400).json({ message: "Drone image ID is required" });
       }
 
       const droneImage = await dbStorage.getDroneImage(parseInt(droneImageId));
       if (!droneImage) {
-        if (files) files.forEach(f => fs.unlink(f.path, () => {}));
+        fs.unlink(file.path, () => {});
         return res.status(404).json({ message: "Drone image not found" });
       }
 
       const existingModel = await dbStorage.getDroneModelByDroneImageId(parseInt(droneImageId));
       if (existingModel) {
-        if (files) files.forEach(f => fs.unlink(f.path, () => {}));
+        fs.unlink(file.path, () => {});
         return res.status(400).json({ message: "A 3D model already exists for this drone image. Delete it first." });
       }
 
-      const fileExt = path.extname(file.originalname).toLowerCase().replace('.', '');
-      const totalSizeMB = Math.round((files || []).reduce((sum, f) => sum + f.size, 0) / (1024 * 1024));
+      const fileExt = path.extname(file.originalname).toLowerCase();
+      let primaryModelPath = file.path;
+      let modelFileType = fileExt.replace('.', '');
+      let totalSizeBytes = file.size;
+
+      if (fileExt === '.zip') {
+        const { execSync } = await import('child_process');
+        const extractDir = path.join(modelUploadDir, `extracted-${Date.now()}`);
+        fs.mkdirSync(extractDir, { recursive: true });
+
+        try {
+          execSync(`unzip -o -j "${file.path}" -d "${extractDir}"`, { timeout: 120000 });
+        } catch (unzipErr) {
+          fs.rmSync(extractDir, { recursive: true, force: true });
+          fs.unlink(file.path, () => {});
+          return res.status(400).json({ message: "Failed to extract ZIP file. Make sure it's a valid ZIP archive." });
+        }
+
+        fs.unlink(file.path, () => {});
+
+        const extractedFiles = fs.readdirSync(extractDir);
+        const modelExtensions = ['.glb', '.gltf', '.obj', '.ply'];
+        const mainModel = extractedFiles.find(f => 
+          modelExtensions.includes(path.extname(f).toLowerCase())
+        );
+
+        if (!mainModel) {
+          fs.rmSync(extractDir, { recursive: true, force: true });
+          return res.status(400).json({ 
+            message: "No 3D model file (.glb, .gltf, .obj, .ply) found in the ZIP. Make sure your ZIP contains at least one model file." 
+          });
+        }
+
+        primaryModelPath = path.join(extractDir, mainModel);
+        modelFileType = path.extname(mainModel).toLowerCase().replace('.', '');
+        totalSizeBytes = extractedFiles.reduce((sum, f) => {
+          try { return sum + fs.statSync(path.join(extractDir, f)).size; } catch { return sum; }
+        }, 0);
+
+        console.log(`ZIP extracted: ${extractedFiles.length} files, main model: ${mainModel} (${modelFileType})`);
+      }
+
+      const totalSizeMB = Math.round(totalSizeBytes / (1024 * 1024));
 
       let calculatedCenterLat = centerLat;
       let calculatedCenterLng = centerLng;
@@ -969,15 +1008,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const additionalFiles = files && files.length > 1 
-        ? files.slice(1).map(f => f.path) 
-        : [];
-
       const modelData = {
         droneImageId: parseInt(droneImageId),
         name: name || `3D Model - ${droneImage.name}`,
-        filePath: file.path,
-        fileType: fileExt,
+        filePath: primaryModelPath,
+        fileType: modelFileType,
         sizeInMB: totalSizeMB,
         centerLat: calculatedCenterLat,
         centerLng: calculatedCenterLng,
@@ -987,9 +1022,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const newModel = await dbStorage.createDroneModel(modelData);
 
-      return res.status(201).json({ ...newModel, additionalFiles: additionalFiles.length });
+      return res.status(201).json(newModel);
     } catch (error) {
-      if (files) files.forEach(f => fs.unlink(f.path, () => {}));
+      if (file) fs.unlink(file.path, () => {});
       console.error("3D model upload error:", error);
       return res.status(500).json({ message: "Error uploading 3D model" });
     }
@@ -1104,9 +1139,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve 3D model files
-  app.get("/api/drone-models/:filename", async (req, res) => {
-    const filePath = safePath(modelUploadDir, req.params.filename);
+  // Serve 3D model files (supports nested paths for extracted ZIPs)
+  app.get("/api/drone-models/*", async (req, res) => {
+    const requestedPath = req.params[0];
+    if (!requestedPath) {
+      return res.status(400).json({ message: "Invalid filename" });
+    }
+    const filePath = safePath(modelUploadDir, requestedPath);
     if (!filePath) {
       return res.status(400).json({ message: "Invalid filename" });
     }
