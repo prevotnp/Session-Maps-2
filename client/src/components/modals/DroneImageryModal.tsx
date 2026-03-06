@@ -238,7 +238,7 @@ const DroneImageryModal: React.FC<DroneImageryModalProps> = ({ isOpen, onClose, 
   const handleUploadCesiumTileset = (droneImage: DroneImage) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.zip,application/zip,application/x-zip-compressed,application/octet-stream';
+    input.accept = '.zip,.ZIP';
     input.onchange = async (e) => {
       const files = (e.target as HTMLInputElement).files;
       if (!files || files.length === 0) return;
