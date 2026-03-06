@@ -138,7 +138,7 @@ export default function RecordingOverlay({ map, isVisible, onClose, onDisplayRou
             type: "line",
             source: "recording-track",
             layout: { "line-join": "round", "line-cap": "round" },
-            paint: { "line-color": "#22c55e", "line-width": 4 },
+            paint: { "line-color": "#3b82f6", "line-width": 2 },
           });
         }
         routeSourceAdded.current = true;
@@ -177,7 +177,7 @@ export default function RecordingOverlay({ map, isVisible, onClose, onDisplayRou
             source: "recording-start-point",
             paint: {
               "circle-radius": 8,
-              "circle-color": "#22c55e",
+              "circle-color": "#3b82f6",
               "circle-stroke-color": "#ffffff",
               "circle-stroke-width": 3,
             },

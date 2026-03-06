@@ -857,11 +857,27 @@ const MapView: React.FC<MapViewProps> = ({
             }, 50);
           });
 
-          const marker = new mapboxgl.Marker({ element: markerEl })
+          const isOwner = (user as any)?.id === displayedRoute.userId;
+          const marker = new mapboxgl.Marker({ element: markerEl, draggable: isOwner })
             .setLngLat([parseFloat(poi.longitude), parseFloat(poi.latitude)])
             .setPopup(popup)
             .addTo(map);
-          
+
+          if (isOwner) {
+            markerEl.style.cursor = 'grab';
+            marker.on('dragend', () => {
+              const lngLat = marker.getLngLat();
+              updatePOIMutation.mutate({
+                routeId: displayedRoute.id,
+                poiId: poi.id,
+                data: {
+                  latitude: lngLat.lat,
+                  longitude: lngLat.lng
+                }
+              });
+            });
+          }
+
           poiMarkersRef.current.push(marker);
         });
       } catch (error) {
@@ -875,7 +891,7 @@ const MapView: React.FC<MapViewProps> = ({
       poiMarkersRef.current.forEach(marker => marker.remove());
       poiMarkersRef.current = [];
     };
-  }, [displayedRoute?.id, map, isEditingDisplayedRoute, poiRefreshTrigger]);
+  }, [displayedRoute?.id, map, isEditingDisplayedRoute, poiRefreshTrigger, user]);
   
   // Effect to handle opening route builder for editing
   useEffect(() => {
@@ -1354,9 +1370,8 @@ const MapView: React.FC<MapViewProps> = ({
             'line-cap': 'round'
           },
           paint: {
-            'line-color': '#22c55e',
-            'line-width': 4,
-            'line-dasharray': [2, 1]
+            'line-color': '#3b82f6',
+            'line-width': 2
           }
         });
 
