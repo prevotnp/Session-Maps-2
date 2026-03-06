@@ -109,10 +109,10 @@ const modelMulterStorage = multer.diskStorage({
 const modelUpload = multer({ 
   storage: modelMulterStorage,
   limits: {
-    fileSize: 5000 * 1024 * 1024, // 5GB limit per file
+    fileSize: Infinity,
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.glb', '.gltf', '.obj', '.ply', '.mtl', '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.zip'];
+    const allowedTypes = ['.glb', '.gltf', '.obj', '.ply', '.mtl', '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.zip', '.json', '.bin', '.b3dm', '.i3dm', '.pnts', '.cmpt'];
     const fileExt = path.extname(file.originalname).toLowerCase();
     if (allowedTypes.includes(fileExt)) {
       cb(null, true);
@@ -906,7 +906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==========================================
   
   // Upload 3D model for a drone image (admin only)
-  app.post("/api/admin/drone-models/upload", isAdmin, modelUpload.single('model'), async (req, res) => {
+  app.post("/api/admin/drone-models/upload", isAdmin, extendTimeout, modelUpload.single('model'), async (req, res) => {
     const user = req.user as any;
     const file = req.file;
     
@@ -940,21 +940,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let totalSizeBytes = file.size;
 
       if (fileExt === '.zip') {
-        const AdmZip = (await import('adm-zip')).default;
+        const { execSync } = await import('child_process');
         const extractDir = path.join(modelUploadDir, `extracted-${Date.now()}`);
         fs.mkdirSync(extractDir, { recursive: true });
 
         try {
-          const zip = new AdmZip(file.path);
-          const entries = zip.getEntries();
-
-          for (const entry of entries) {
-            if (entry.isDirectory) continue;
-            const fileName = path.basename(entry.entryName);
-            if (fileName.startsWith('.') || fileName.startsWith('__MACOSX')) continue;
-            const destPath = path.join(extractDir, fileName);
-            fs.writeFileSync(destPath, entry.getData());
-          }
+          execSync(`unzip -o "${file.path}" -d "${extractDir}"`, { timeout: 600000, maxBuffer: 50 * 1024 * 1024 });
         } catch (unzipErr) {
           console.error("ZIP extraction error:", unzipErr);
           fs.rmSync(extractDir, { recursive: true, force: true });
@@ -964,26 +955,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         fs.unlink(file.path, () => {});
 
-        const extractedFiles = fs.readdirSync(extractDir);
+        const getAllFiles = (dir: string): string[] => {
+          const results: string[] = [];
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            if (entry.name.startsWith('.') || entry.name === '__MACOSX') continue;
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+              results.push(...getAllFiles(fullPath));
+            } else {
+              results.push(fullPath);
+            }
+          }
+          return results;
+        };
+
+        const allFiles = getAllFiles(extractDir);
         const modelExtensions = ['.glb', '.gltf', '.obj', '.ply'];
-        const mainModel = extractedFiles.find(f => 
+        const mainModelPath = allFiles.find(f => 
           modelExtensions.includes(path.extname(f).toLowerCase())
         );
 
-        if (!mainModel) {
+        if (!mainModelPath) {
           fs.rmSync(extractDir, { recursive: true, force: true });
           return res.status(400).json({ 
             message: "No 3D model file (.glb, .gltf, .obj, .ply) found in the ZIP. Make sure your ZIP contains at least one model file." 
           });
         }
 
-        primaryModelPath = path.join(extractDir, mainModel);
-        modelFileType = path.extname(mainModel).toLowerCase().replace('.', '');
-        totalSizeBytes = extractedFiles.reduce((sum, f) => {
-          try { return sum + fs.statSync(path.join(extractDir, f)).size; } catch { return sum; }
+        primaryModelPath = mainModelPath;
+        modelFileType = path.extname(mainModelPath).toLowerCase().replace('.', '');
+        totalSizeBytes = allFiles.reduce((sum, f) => {
+          try { return sum + fs.statSync(f).size; } catch { return sum; }
         }, 0);
 
-        console.log(`ZIP extracted: ${extractedFiles.length} files, main model: ${mainModel} (${modelFileType})`);
+        console.log(`ZIP extracted: ${allFiles.length} files, main model: ${path.basename(mainModelPath)} (${modelFileType})`);
       }
 
       const totalSizeMB = Math.round(totalSizeBytes / (1024 * 1024));
