@@ -2245,7 +2245,6 @@ const MapView: React.FC<MapViewProps> = ({
         onToggleOutdoorPOIs={() => setShowOutdoorPOIs(!showOutdoorPOIs)}
         esriImageryEnabled={esriImageryEnabled}
         onToggleEsriImagery={toggleEsriImagery}
-        onOpenAIAssist={() => setIsAIAssistOpen(!isAIAssistOpen)}
         isAIAssistOpen={isAIAssistOpen}
       />
 

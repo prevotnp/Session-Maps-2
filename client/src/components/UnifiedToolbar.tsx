@@ -472,17 +472,19 @@ const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
                       )}
                     </div>
 
-                    <button 
-                      className={`layer-toggle-btn bg-dark-gray/50 rounded-full p-1.5 sm:p-2 min-w-[38px] sm:min-w-[44px] min-h-[38px] sm:min-h-[44px] flex flex-col items-center border-2 transition-all active:scale-95 ${isAIAssistOpen ? 'border-yellow-400 ring-2 ring-yellow-400' : 'border-transparent hover:ring-2 hover:ring-yellow-400/50'}`}
-                      onClick={onOpenAIAssist}
-                      data-testid="button-ai-assist"
-                    >
-                      <Sparkles className={`h-4 w-4 sm:h-5 sm:w-5 ${isAIAssistOpen ? 'text-yellow-400' : 'text-yellow-300'}`} />
-                      <span className="text-[9px] sm:text-[10px] mt-0.5 flex flex-col items-center leading-tight">
-                        <span>AI</span>
-                        <span>Assist</span>
-                      </span>
-                    </button>
+                    {onOpenAIAssist && (
+                      <button
+                        className={`layer-toggle-btn bg-dark-gray/50 rounded-full p-1.5 sm:p-2 min-w-[38px] sm:min-w-[44px] min-h-[38px] sm:min-h-[44px] flex flex-col items-center border-2 transition-all active:scale-95 ${isAIAssistOpen ? 'border-yellow-400 ring-2 ring-yellow-400' : 'border-transparent hover:ring-2 hover:ring-yellow-400/50'}`}
+                        onClick={onOpenAIAssist}
+                        data-testid="button-ai-assist"
+                      >
+                        <Sparkles className={`h-4 w-4 sm:h-5 sm:w-5 ${isAIAssistOpen ? 'text-yellow-400' : 'text-yellow-300'}`} />
+                        <span className="text-[9px] sm:text-[10px] mt-0.5 flex flex-col items-center leading-tight">
+                          <span>AI</span>
+                          <span>Assist</span>
+                        </span>
+                      </button>
+                    )}
                     
                   </div>
                 </div>
