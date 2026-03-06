@@ -310,7 +310,7 @@ const DroneImageryModal: React.FC<DroneImageryModalProps> = ({ isOpen, onClose, 
   const handleUpload3DModel = (droneImageId: number) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.glb,.gltf,.obj,.ply';
+    input.accept = '.glb,.gltf,.obj,.ply,.zip,.ZIP';
     input.onchange = async (e) => {
       const files = (e.target as HTMLInputElement).files;
       if (files && files.length > 0) {
