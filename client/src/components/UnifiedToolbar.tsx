@@ -61,7 +61,6 @@ const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
   const [droneDropdownOpen, setDroneDropdownOpen] = useState(false);
   const [layersDropdownOpen, setLayersDropdownOpen] = useState(false);
   const layersDropdownRef = useRef<HTMLDivElement>(null);
-  const [droneModels, setDroneModels] = useState<Record<number, boolean>>({});
   const [, navigate] = useLocation();
   const droneDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -99,22 +98,6 @@ const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
     queryKey: ['/api/drone-images'],
   });
   
-  useEffect(() => {
-    if (droneImages && droneImages.length > 0) {
-      droneImages.forEach(async (image) => {
-        try {
-          const response = await fetch(`/api/drone-images/${image.id}/model`);
-          if (response.ok) {
-            setDroneModels(prev => ({ ...prev, [image.id]: true }));
-          } else {
-            setDroneModels(prev => ({ ...prev, [image.id]: false }));
-          }
-        } catch {
-          setDroneModels(prev => ({ ...prev, [image.id]: false }));
-        }
-      });
-    }
-  }, [droneImages]);
   
   const { data: pendingInvites = [] } = useQuery<LiveMapInvite[]>({
     queryKey: ['/api/live-map-invites'],
@@ -350,7 +333,6 @@ const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
                         <div>
                           {droneImages.map((droneImage, index) => {
                             const displayName = droneImage.name;
-                            const has3DModel = droneModels[droneImage.id];
                             return (
                               <div 
                                 key={droneImage.id} 
@@ -372,16 +354,6 @@ const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
                                     data-testid={`button-hide-${droneImage.id}`}
                                   >
                                     Hide
-                                  </button>
-                                )}
-                                {has3DModel && (
-                                  <button
-                                    onClick={() => navigate(`/drone/${droneImage.id}/3d`)}
-                                    className="px-3 py-1.5 rounded text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors"
-                                    title="Open 3D model viewer"
-                                    data-testid={`button-view-3d-${droneImage.id}`}
-                                  >
-                                    3D Model
                                   </button>
                                 )}
                                 {cesiumTilesetsByDroneImage[droneImage.id] && (

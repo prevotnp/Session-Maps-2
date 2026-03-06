@@ -207,7 +207,6 @@ export default function LiveSharedMap() {
   const [is3DMode, setIs3DMode] = useState(false);
   const [activeDroneLayers, setActiveDroneLayers] = useState<Set<number>>(new Set());
   const [droneDropdownOpen, setDroneDropdownOpen] = useState(false);
-  const [droneModels, setDroneModels] = useState<Record<number, boolean>>({});
   const [mapReady, setMapReady] = useState(false);
   
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -277,18 +276,6 @@ export default function LiveSharedMap() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [droneDropdownOpen]);
 
-  useEffect(() => {
-    if (droneImages && droneImages.length > 0) {
-      droneImages.forEach(async (image) => {
-        try {
-          const response = await fetch(`/api/drone-images/${image.id}/model`);
-          setDroneModels(prev => ({ ...prev, [image.id]: response.ok }));
-        } catch {
-          setDroneModels(prev => ({ ...prev, [image.id]: false }));
-        }
-      });
-    }
-  }, [droneImages]);
 
   const { data: cesiumTilesets = [] } = useQuery<any[]>({
     queryKey: ['/api/cesium-tilesets'],
@@ -1911,7 +1898,6 @@ export default function LiveSharedMap() {
                         ) : (
                           <div>
                             {droneImages.map((droneImage, index) => {
-                              const has3DModel = droneModels[droneImage.id];
                               return (
                                 <div
                                   key={droneImage.id}
@@ -1931,15 +1917,6 @@ export default function LiveSharedMap() {
                                       title="Hide 2D overlay from map"
                                     >
                                       Hide
-                                    </button>
-                                  )}
-                                  {has3DModel && (
-                                    <button
-                                      onClick={() => setLocation(`/drone/${droneImage.id}/3d`)}
-                                      className="px-3 py-1.5 rounded text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors"
-                                      title="Open 3D model viewer"
-                                    >
-                                      3D Model
                                     </button>
                                   )}
                                   {cesiumTilesetsByDroneImage[droneImage.id] && (

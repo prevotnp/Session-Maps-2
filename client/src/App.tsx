@@ -11,7 +11,6 @@ import Home from "@/pages/Home";
 import Auth from "@/pages/Auth";
 import Profile from "@/pages/Profile";
 import AdminPanel from "@/pages/AdminPanel";
-import DroneModelViewer from "@/pages/DroneModelViewer";
 import LiveSharedMap from "@/pages/LiveSharedMap";
 import Explore from "@/pages/Explore";
 import ForgotPassword from "@/pages/ForgotPassword";
@@ -46,7 +45,6 @@ function Router() {
       <Route path="/activities/:id">{(params) => <ProtectedRoute component={ActivityDetail} {...params} />}</Route>
       <Route path="/profile">{() => <ProtectedRoute component={Profile} />}</Route>
       <Route path="/admin">{() => <ProtectedRoute component={AdminPanel} />}</Route>
-      <Route path="/drone/:id/3d">{(params) => <ProtectedRoute component={DroneModelViewer} {...params} />}</Route>
       <Route path="/cesium/:id">{(params) => <ProtectedRoute component={CesiumViewer} {...params} />}</Route>
       <Route path="/live-map/:id">{(params) => <ProtectedRoute component={LiveSharedMap} {...params} />}</Route>
       {isLoading || !isAuthenticated ? (
