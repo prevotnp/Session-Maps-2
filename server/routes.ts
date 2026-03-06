@@ -1294,45 +1294,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const tilesetRootDir = path.dirname(tilesetJsonPath);
 
-      const tilesetRecord = await dbStorage.createCesium3dTileset({
-        droneImageId: droneImageId ? parseInt(droneImageId) : null,
-        name,
-        storagePath: '',
-        tilesetJsonUrl: '',
-        sizeInMB: fileSizeMB,
-        centerLat,
-        centerLng,
-        centerAlt: centerAlt || null,
-        boundingVolume: null,
-        userId: user.id,
-      });
-
-      const storagePath = `public/cesium-tilesets/${tilesetRecord.id}`;
-
-      const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-      if (!bucketId) {
-        return res.status(500).json({ message: "Object storage not configured" });
-      }
-      
-      const { objectStorageClient } = await import('./replit_integrations/object_storage');
-      const bucket = objectStorageClient.bucket(bucketId);
-
-      const uploadDir = async (dirPath: string, prefix: string) => {
-        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-        for (const entry of entries) {
-          const fullPath = path.join(dirPath, entry.name);
-          if (entry.isDirectory()) {
-            await uploadDir(fullPath, `${prefix}/${entry.name}`);
-          } else {
-            const objectPath = `${prefix}/${entry.name}`;
-            const fileBuffer = fs.readFileSync(fullPath);
-            await bucket.file(objectPath).save(fileBuffer);
-          }
-        }
-      };
-
-      await uploadDir(tilesetRootDir, storagePath);
-
       let boundingVolume = null;
       try {
         const tilesetJson = JSON.parse(fs.readFileSync(tilesetJsonPath, 'utf-8'));
@@ -1343,6 +1304,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error parsing tileset.json:", e);
       }
 
+      const tilesetRecord = await dbStorage.createCesium3dTileset({
+        droneImageId: droneImageId ? parseInt(droneImageId) : null,
+        name,
+        storagePath: `local:${tilesetRootDir}`,
+        tilesetJsonUrl: '',
+        sizeInMB: fileSizeMB,
+        centerLat,
+        centerLng,
+        centerAlt: centerAlt || null,
+        boundingVolume,
+        userId: user.id,
+      });
+
       const tilesetJsonFilename = path.basename(tilesetJsonPath);
       const tilesetJsonUrl = `/api/cesium-tilesets/${tilesetRecord.id}/tiles/${tilesetJsonFilename}`;
 
@@ -1350,17 +1324,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { cesium3dTilesets } = await import('@shared/schema');
       const { eq } = await import('drizzle-orm');
       await db.update(cesium3dTilesets)
-        .set({ 
-          storagePath, 
-          tilesetJsonUrl,
-          boundingVolume 
-        })
+        .set({ tilesetJsonUrl })
         .where(eq(cesium3dTilesets.id, tilesetRecord.id));
 
-      fs.rmSync(extractDir, { recursive: true, force: true });
       fs.unlinkSync(file.path);
 
       const updatedTileset = await dbStorage.getCesium3dTileset(tilesetRecord.id);
+      console.log(`Cesium tileset ${tilesetRecord.id} stored locally at ${tilesetRootDir} with ${allFiles.length} files`);
       return res.status(201).json(updatedTileset);
     } catch (error) {
       if (file && fs.existsSync(file.path)) {
@@ -1376,6 +1346,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tilesetId = parseId(req.params.id);
       const tilePath = (req.params as Record<string, string>)[0];
       
+      const ext = path.extname(tilePath).toLowerCase();
+      const contentTypes: Record<string, string> = {
+        '.json': 'application/json',
+        '.b3dm': 'application/octet-stream',
+        '.i3dm': 'application/octet-stream',
+        '.pnts': 'application/octet-stream',
+        '.cmpt': 'application/octet-stream',
+        '.glb': 'model/gltf-binary',
+        '.gltf': 'model/gltf+json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.subtree': 'application/octet-stream',
+        '.bin': 'application/octet-stream',
+      };
+
+      const tileset = await dbStorage.getCesium3dTileset(tilesetId);
+      if (!tileset) {
+        return res.status(404).json({ message: "Tileset not found" });
+      }
+
+      if (tileset.storagePath && tileset.storagePath.startsWith('local:')) {
+        const localDir = tileset.storagePath.replace('local:', '');
+        const localFile = path.resolve(path.join(localDir, tilePath));
+        if (!localFile.startsWith(path.resolve(localDir))) {
+          return res.status(400).json({ message: "Invalid path" });
+        }
+        if (fs.existsSync(localFile)) {
+          res.set('Content-Type', contentTypes[ext] || 'application/octet-stream');
+          res.set('Access-Control-Allow-Origin', '*');
+          return res.sendFile(localFile);
+        }
+        return res.status(404).json({ message: "Tile not found" });
+      }
+
       const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
       if (!bucketId) {
         return res.status(500).json({ message: "Object storage not configured" });
@@ -1392,20 +1397,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const [buffer] = await file.download();
-      
-      const ext = path.extname(tilePath).toLowerCase();
-      const contentTypes: Record<string, string> = {
-        '.json': 'application/json',
-        '.b3dm': 'application/octet-stream',
-        '.i3dm': 'application/octet-stream',
-        '.pnts': 'application/octet-stream',
-        '.cmpt': 'application/octet-stream',
-        '.glb': 'model/gltf-binary',
-        '.gltf': 'model/gltf+json',
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-      };
       
       res.set('Content-Type', contentTypes[ext] || 'application/octet-stream');
       res.set('Access-Control-Allow-Origin', '*');
