@@ -548,8 +548,6 @@ export default function RouteBuilderModal({
         // Display route on map - skip fitBounds to allow user to pan and add more waypoints
         displayRouteOnMap(pathCoordinates, waypointsForDisplay, true);
       } else if (routeState.routingMode === 'trail') {
-        console.log(`Calculating ${routeState.trailProfile} trail route via ORS...`);
-
         const trailResponse = await fetch('/api/ors/route', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -557,7 +555,6 @@ export default function RouteBuilderModal({
         });
 
         const trailData = await trailResponse.json();
-        console.log('Hiking route response:', trailData);
 
         if (!trailData.success || !trailData.coordinates || trailData.coordinates.length === 0) {
           console.error('Hiking route failed:', trailData.message);
@@ -606,9 +603,7 @@ export default function RouteBuilderModal({
         
         const response = await fetch(directionsUrl);
         const data = await response.json();
-        
-        console.log('Mapbox Directions API response:', data);
-        
+
         if (data.code && data.code !== 'Ok') {
           // Mapbox returned an error
           console.error('Mapbox API error:', data);

@@ -498,10 +498,6 @@ export default function CesiumViewer() {
       const west = lon - degSpread;
       const east = lon + degSpread;
 
-      console.log('[MapOverlay] Tileset center:', { lat, lon });
-      console.log('[MapOverlay] Bounding radius:', boundingSphere.radius, 'meters');
-      console.log('[MapOverlay] Query bbox:', { south, west, north, east });
-
       const MISSING_HEIGHT = -999999;
 
       const sampleTilesetHeight = async (coords: Array<{lat: number; lon: number}>): Promise<Map<string, number>> => {
@@ -603,8 +599,6 @@ export default function CesiumViewer() {
           return;
         }
 
-        console.log('[MapOverlay] Overpass response elements:', data.elements.length);
-
         const nodesMap = new Map<number, { lat: number; lon: number }>();
         data.elements.forEach((el: any) => {
           if (el.type === 'node') {
@@ -662,8 +656,6 @@ export default function CesiumViewer() {
           }
         });
 
-        console.log('[MapOverlay] Labeled features:', labeledFeatures.length, 'Trail paths:', trailPaths.length);
-
         const allUniqueCoords: Array<{lat: number; lon: number}> = [];
         const coordKeySet = new Set<string>();
 
@@ -684,8 +676,6 @@ export default function CesiumViewer() {
           }
         }
 
-        console.log('[MapOverlay] Sampling tileset surface height for', allUniqueCoords.length, 'unique coordinates');
-
         const heightMap = new Map<string, number>();
         const sampleBatchSize = 50;
         for (let b = 0; b < allUniqueCoords.length; b += sampleBatchSize) {
@@ -693,8 +683,6 @@ export default function CesiumViewer() {
           const batchResults = await sampleTilesetHeight(batch);
           batchResults.forEach((height, key) => heightMap.set(key, height));
         }
-
-        console.log('[MapOverlay] Height sampling complete:', heightMap.size, 'points');
 
         for (const trail of trailPaths) {
           interpolateGaps(trail.coords, heightMap);

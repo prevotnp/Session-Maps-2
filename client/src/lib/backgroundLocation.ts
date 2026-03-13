@@ -59,7 +59,6 @@ export async function startBackgroundTracking(config: BackgroundLocationConfig):
 
     await BackgroundGeolocation.start();
     isTracking = true;
-    console.log('[BackgroundLocation] Started background tracking');
   } catch (error) {
     console.error('[BackgroundLocation] Failed to start:', error);
   }
@@ -75,7 +74,6 @@ export async function stopBackgroundTracking(): Promise<void> {
     await BackgroundGeolocation.stop();
     await BackgroundGeolocation.removeListeners();
     isTracking = false;
-    console.log('[BackgroundLocation] Stopped background tracking');
   } catch (error) {
     console.error('[BackgroundLocation] Failed to stop:', error);
   }

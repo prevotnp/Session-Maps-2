@@ -8,7 +8,6 @@ import { addUserLocationToMap, UserLocation, DEFAULT_MAP_SETTINGS, addTetonCount
 
 // Set mapbox access token
 const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-console.log('Mapbox token check:', mapboxToken ? `Token exists (${mapboxToken.substring(0, 8)}...)` : 'Token missing');
 mapboxgl.accessToken = mapboxToken || '';
 
 if (!mapboxgl.accessToken) {
@@ -17,9 +16,7 @@ if (!mapboxgl.accessToken) {
   // Test token validity
   fetch(`https://api.mapbox.com/styles/v1/mapbox/streets-v11?access_token=${mapboxgl.accessToken}`)
     .then(response => {
-      if (response.ok) {
-        console.log('Mapbox token is valid and working');
-      } else {
+      if (!response.ok) {
         console.error('Mapbox token authentication failed:', response.status, response.statusText);
       }
     })
@@ -1045,8 +1042,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
       // Only place markers when in marker mode
       if (!isMarkerMode) return;
       
-      console.log('Map clicked for marker placement');
-      
       const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
       
       // Get elevation data (simplified for now)
@@ -1067,8 +1062,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
           lngLat,
           elevation
         };
-        
-        console.log('Adding route waypoint:', newWaypoint);
         
         // Update route waypoints
         const updatedWaypoints = [...routeWaypoints, newWaypoint];
@@ -1161,8 +1154,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         trailDistance
       };
       
-      console.log('Creating marker:', newMarker);
-      
       // Create marker element with SVG pin shape
       const markerElement = document.createElement('div');
       markerElement.className = 'custom-marker';
@@ -1213,7 +1204,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
       // Update state
       setMarkers(prev => [...prev, newMarker]);
       
-      console.log('Marker added successfully');
     };
     
     map.on('click', handleMapClick);
@@ -1411,8 +1401,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
 
     // Wait for map to load
     map.on('load', () => {
-      console.log('Map loaded successfully');
-
       // Restyle mountain peak labels: saturated blue + elevation in feet
       try {
         if (map.getLayer('natural-point-label')) {
@@ -1506,7 +1494,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         setIsMarkerMode(false);
         const mapCanvas = map.getCanvas();
         mapCanvas.style.cursor = '';
-        console.log('Marker placement mode disabled due to 3D layer switch');
       }
       
       // Add terrain source if not exists and enable 3D view
@@ -1539,7 +1526,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         setIsMarkerMode(false);
         const mapCanvas = map.getCanvas();
         mapCanvas.style.cursor = '';
-        console.log('Marker placement mode disabled due to 2D layer switch');
       }
       
       // Disable 3D terrain
@@ -1562,7 +1548,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         
         removeTopoContourLines(map);
         newActiveLayers = newActiveLayers.filter(layer => layer !== 'topo');
-        console.log('Topographic contour lines hidden');
       } else {
         const result = addTopoContourLines(map);
         // Store cleanup function so we can cancel if user toggles off before style loads
@@ -1570,7 +1555,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
           pendingTopoCleanupRef.current = result.cleanup;
         }
         newActiveLayers.push('topo');
-        console.log('Topographic contour lines displayed');
       }
     } else if (layerType === 'drone') {
       // Handle drone imagery layer
@@ -1581,7 +1565,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         setIsMarkerMode(false);
         const mapCanvas = map.getCanvas();
         mapCanvas.style.cursor = '';
-        console.log('Marker placement mode disabled due to drone layer switch');
       }
       
       // Drone layer functionality would be implemented here
@@ -1619,12 +1602,10 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         // Enable marker placement mode
         const mapCanvas = map.getCanvas();
         mapCanvas.style.cursor = 'crosshair';
-        console.log('Marker placement mode enabled');
       } else {
         // Disable marker placement mode
         const mapCanvas = map.getCanvas();
         mapCanvas.style.cursor = '';
-        console.log('Marker placement mode disabled');
       }
     } else {
       // For other layers, toggle their visibility and disable marker mode
@@ -1639,7 +1620,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         setIsMarkerMode(false);
         const mapCanvas = map.getCanvas();
         mapCanvas.style.cursor = '';
-        console.log('Marker placement mode disabled due to layer switch');
       }
     }
     
@@ -1871,8 +1851,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
 
   // Edit marker name
   const editMarker = (markerId: string) => {
-    console.log('Editing marker:', markerId);
-    
     // Find the marker in state
     const marker = markers.find(m => m.id === markerId);
     if (!marker) return;
@@ -1907,13 +1885,10 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
       }
     }
     
-    console.log('Marker name updated successfully');
   };
 
   // Remove marker from map
   const removeMarker = (markerId: string) => {
-    console.log('Removing marker:', markerId);
-    
     // Remove from mapbox
     const mapboxMarker = mapMarkers.get(markerId);
     if (mapboxMarker) {
@@ -1928,7 +1903,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
     // Remove from state
     setMarkers(prev => prev.filter(marker => marker.id !== markerId));
     
-    console.log('Marker removed successfully');
   };
 
   // Edit route waypoint name
@@ -2168,7 +2142,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         }
       });
 
-      console.log(`Drone imagery loaded as raster tiles (zoom ${tileMinZoom}-${tileMaxZoom}):`, droneImage.name);
     } else {
       const imageUrl = `/api/drone-images/${droneImage.id}/file?t=${Date.now()}`;
       
@@ -2187,7 +2160,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         }
       });
 
-      console.log('Drone imagery loaded as single image:', droneImage.name);
     }
 
     const handleSourceData = (e: mapboxgl.MapSourceDataEvent) => {
@@ -2256,7 +2228,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
       map.once('moveend', () => {
         const currentZoom = map.getZoom();
         if (currentZoom < requiredMinZoom) {
-          console.log(`Zoom ${currentZoom.toFixed(1)} is below tile minZoom ${requiredMinZoom}, zooming in`);
           map.easeTo({ zoom: requiredMinZoom, duration: 500 });
         }
       });
@@ -2301,7 +2272,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
       setActiveDroneImagery(null);
     }
     
-    console.log('Drone imagery removed from map:', imageId);
   };
   
   // Remove drone imagery overlay
@@ -2353,9 +2323,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
     const mapCanvas = mapRef.current.getCanvas();
     mapCanvas.style.cursor = 'crosshair';
     
-    // Display drawing instructions
-    // In a real app, this would be shown in the UI
-    console.log(`Drawing mode: ${mode}. Click on the map to add points.`);
   };
   
   // Cancel drawing mode
@@ -2841,9 +2808,7 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
 
   // Enable drag mode for drone imagery
   const enableDragMode = () => {
-    console.log('Toggle drag mode, current state:', isDragMode);
     setIsDragMode(!isDragMode);
-    console.log('New drag mode state will be:', !isDragMode);
   };
 
   // Handle drone imagery dragging
@@ -2879,7 +2844,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
     const map = mapRef.current;
     
     const handleMouseDown = (e: any) => {
-      console.log('Mouse down event triggered, drag mode active');
       e.preventDefault();
       e.originalEvent.preventDefault();
       
@@ -2891,7 +2855,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         lng: droneAdjustments.offsetLng
       });
       
-      console.log('Drag started at:', e.point);
       if (map.getCanvas) {
         map.getCanvas().style.cursor = 'grabbing';
       }
@@ -2902,8 +2865,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
 
       const deltaX = e.point.x - dragStart.x;
       const deltaY = e.point.y - dragStart.y;
-      
-      console.log('Dragging with delta:', { deltaX, deltaY });
       
       // Convert screen pixels to map coordinates
       const zoom = map.getZoom();
@@ -2918,15 +2879,11 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         offsetLng: dragStart.lng + lngOffset
       };
       
-      console.log('New position offsets:', { latOffset, lngOffset });
-      console.log('Final adjustments:', newAdjustments);
-      
       // Update the state directly to move the image
       setDroneAdjustments(newAdjustments);
     };
 
     const handleMouseUp = () => {
-      console.log('Mouse up - ending drag');
       if (isDragging && dragStart && activeDroneImagery) {
         // Calculate final position and save it
         const deltaX = dragStart.x - dragStart.x; // This will be updated during drag
@@ -2942,7 +2899,6 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
           offsetLng: droneAdjustments.offsetLng
         };
         
-        console.log('Saving final drone position:', finalAdjustments);
         setDroneAdjustments(finalAdjustments);
       }
       
@@ -2953,13 +2909,11 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
       }
     };
 
-    console.log('Adding drag event listeners');
     map.on('mousedown', handleMouseDown);
     map.on('mousemove', handleMouseMove);
     map.on('mouseup', handleMouseUp);
 
     return () => {
-      console.log('Removing drag event listeners');
       map.off('mousedown', handleMouseDown);
       map.off('mousemove', handleMouseMove);
       map.off('mouseup', handleMouseUp);

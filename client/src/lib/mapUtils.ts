@@ -225,7 +225,6 @@ export function addDroneImageryToMap(
       imageCoordinates = corners;
       // For outline, close the polygon
       outlineCoords = [...corners, corners[0]];
-      console.log('Using exact corner coordinates from GeoTIFF');
     } catch (e) {
       console.error('Failed to parse corner coordinates, falling back to bounds');
       // Fall back to bounding box
@@ -270,8 +269,7 @@ export function addDroneImageryToMap(
   
   // Add raster image source for the actual drone imagery
   const imageUrl = `/api/drone-images/${droneImage.id}/file`;
-  console.log('Loading drone imagery from URL:', imageUrl);
-  
+
   map.addSource(sourceId, {
     type: 'image',
     url: imageUrl,
@@ -319,9 +317,7 @@ export function addDroneImageryToMap(
       'line-dasharray': [2, 1]
     }
   });
-  
-  console.log('Drone imagery added to map:', droneImage.name);
-  
+
   // Fly to the drone imagery area
   const bounds = calculateDroneImageryBounds(droneImage);
   map.fitBounds(bounds, {
@@ -391,10 +387,7 @@ export function addDroneImageryBoundaries(map: mapboxgl.Map, droneImages: DroneI
   const outlineLayerId = 'drone-imagery-boundaries-outline';
   const labelLayerId = 'drone-imagery-boundaries-labels';
   
-  console.log('addDroneImageryBoundaries called with', droneImages.length, 'images');
-  
   if (droneImages.length === 0) {
-    console.log('No drone images to display boundaries for');
     return;
   }
   
@@ -531,8 +524,6 @@ export function addDroneImageryBoundaries(map: mapboxgl.Map, droneImages: DroneI
           'text-halo-width': 1.5
         }
       });
-      
-      console.log(`Added drone imagery boundaries for ${droneImages.length} areas`);
     } catch (error) {
       console.error('Error adding drone imagery boundaries:', error);
     }
@@ -1306,8 +1297,6 @@ export function addTopoContourLines(map: mapboxgl.Map): { cleanup?: () => void }
           'text-opacity': 0.9
         }
       });
-
-      console.log('Topographic contour lines added successfully');
     } catch (error) {
       console.error('Failed to add topographic contour lines:', error);
     }
@@ -1357,7 +1346,6 @@ export function removeTopoContourLines(map: mapboxgl.Map): void {
     if (map.getSource('mapbox-terrain')) {
       map.removeSource('mapbox-terrain');
     }
-    console.log('Topographic contour lines removed');
   } catch (error) {
     console.error('Error removing topographic layers:', error);
   }

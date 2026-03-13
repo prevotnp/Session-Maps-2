@@ -15,7 +15,6 @@ let reconnectAttempts = 0;
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && userId && (!websocket || websocket.readyState !== WebSocket.OPEN)) {
-    console.log('WebSocket: App became visible, reconnecting...');
     reconnectAttempts = 0;
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
@@ -109,14 +108,12 @@ function createWebSocket(currentUserId: number): WebSocket {
     }
 
     if (document.visibilityState === 'hidden') {
-      console.log('WebSocket closed while app is backgrounded — will reconnect on foreground');
       return;
     }
 
     if (!reconnectTimeout && userId) {
       const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000);
       reconnectAttempts++;
-      console.log(`WebSocket closed, reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts})`);
       reconnectTimeout = setTimeout(() => {
         reconnectTimeout = null;
         if (userId && document.visibilityState === 'visible') {

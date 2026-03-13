@@ -24,13 +24,8 @@ export function useBackgroundResilience({
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         lastHiddenTimeRef.current = Date.now();
-        console.log(`[${label}] App went to background`);
         onBackgroundEnter?.();
       } else if (document.visibilityState === 'visible') {
-        const hiddenDuration = lastHiddenTimeRef.current
-          ? Math.round((Date.now() - lastHiddenTimeRef.current) / 1000)
-          : 0;
-        console.log(`[${label}] App returned to foreground after ${hiddenDuration}s`);
         lastHiddenTimeRef.current = null;
 
         setTimeout(() => {
@@ -43,7 +38,6 @@ export function useBackgroundResilience({
 
     const handlePageShow = (event: PageTransitionEvent) => {
       if (event.persisted && isActiveRef.current) {
-        console.log(`[${label}] Page restored from bfcache`);
         setTimeout(() => onForegroundResume(), 500);
       }
     };
@@ -57,10 +51,8 @@ export function useBackgroundResilience({
       import('@capacitor/app').then(({ App }) => {
         const listener = App.addListener('appStateChange', ({ isActive: appIsActive }) => {
           if (appIsActive && isActiveRef.current) {
-            console.log(`[${label}] Native app resumed`);
             setTimeout(() => onForegroundResume(), 300);
           } else if (!appIsActive) {
-            console.log(`[${label}] Native app backgrounded`);
             onBackgroundEnter?.();
           }
         });

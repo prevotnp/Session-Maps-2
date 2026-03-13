@@ -1028,14 +1028,9 @@ const MapView: React.FC<MapViewProps> = ({
   useEffect(() => {
     const handleDroneImageActivated = (event: CustomEvent) => {
       const image = event.detail as DroneImage;
-      console.log('=== GLOBAL EVENT: droneImageActivated ===');
-      console.log('Image:', image.id, image.name);
-      
+
       if (isMapReady && addDroneImagery) {
-        console.log('Calling addDroneImagery from global event');
         addDroneImagery(image);
-      } else {
-        console.log('Map not ready, skipping');
       }
     };
     
@@ -1049,14 +1044,9 @@ const MapView: React.FC<MapViewProps> = ({
   useEffect(() => {
     const handleDroneImageDeactivated = (event: CustomEvent) => {
       const { id } = event.detail;
-      console.log('=== GLOBAL EVENT: droneImageDeactivated ===');
-      console.log('Image ID:', id);
-      
+
       if (isMapReady && removeDroneImageryById) {
-        console.log('Calling removeDroneImageryById from global event');
         removeDroneImageryById(id);
-      } else {
-        console.log('Map not ready, skipping');
       }
     };
     
@@ -1070,14 +1060,6 @@ const MapView: React.FC<MapViewProps> = ({
   // This runs FIRST and takes priority over auto-load
   useEffect(() => {
     if (!isMapReady || !addDroneImagery || !activatedDroneImage) return;
-    
-    console.log('Activating drone imagery from modal (React prop):', activatedDroneImage.name, 'ID:', activatedDroneImage.id);
-    console.log('Coordinates:', {
-      swLat: activatedDroneImage.southWestLat,
-      swLng: activatedDroneImage.southWestLng,
-      neLat: activatedDroneImage.northEastLat,
-      neLng: activatedDroneImage.northEastLng
-    });
     
     // Set flag to prevent auto-load from re-flying
     justActivatedViaModalRef.current = true;
@@ -1110,7 +1092,6 @@ const MapView: React.FC<MapViewProps> = ({
     // Check for image passed via global variable (from Upload page "View on Map" navigation)
     const globalImage = (window as any).__activatedDroneImage;
     if (globalImage) {
-      console.log('Loading drone imagery from global handoff:', globalImage.name, 'ID:', globalImage.id);
       hasAutoLoadedRef.current = true;
       (window as any).__activatedDroneImage = null; // Clear it
       addDroneImagery(globalImage);
@@ -1118,7 +1099,6 @@ const MapView: React.FC<MapViewProps> = ({
     }
 
     if (activeDroneImage && !activeDroneImagery) {
-      console.log('INITIAL auto-load of active drone imagery:', activeDroneImage.name, 'ID:', activeDroneImage.id);
       hasAutoLoadedRef.current = true;
       addDroneImagery(activeDroneImage);
     }
@@ -1234,7 +1214,6 @@ const MapView: React.FC<MapViewProps> = ({
       newActiveLayers.add(droneImageId);
       // Find and add the drone imagery to the map
       const droneImage = droneImages?.find(img => img.id === droneImageId);
-      console.log('Toggling drone layer ON:', droneImageId, droneImage);
       if (droneImage && addDroneImagery) {
         addDroneImagery(droneImage);
         toast({
@@ -1246,7 +1225,6 @@ const MapView: React.FC<MapViewProps> = ({
       }
     } else {
       newActiveLayers.delete(droneImageId);
-      console.log('Toggling drone layer OFF:', droneImageId);
       if (removeDroneImageryById) {
         removeDroneImageryById(droneImageId);
       }

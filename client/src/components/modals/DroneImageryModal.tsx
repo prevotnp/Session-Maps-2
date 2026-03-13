@@ -133,14 +133,6 @@ const DroneImageryModal: React.FC<DroneImageryModalProps> = ({ isOpen, onClose, 
   });
   
   const handleActivateImage = (image: DroneImage) => {
-    console.log('handleActivateImage called with:', image.id, image.name);
-    console.log('Image coordinates:', {
-      swLat: image.southWestLat,
-      swLng: image.southWestLng,
-      neLat: image.northEastLat,
-      neLng: image.northEastLng
-    });
-    
     // Store image data in a global for the map to access
     (window as any).__activatedDroneImage = image;
     
@@ -152,7 +144,6 @@ const DroneImageryModal: React.FC<DroneImageryModalProps> = ({ isOpen, onClose, 
     
     // Also pass via React prop if available
     if (onActivateImage) {
-      console.log('Calling onActivateImage callback IMMEDIATELY with:', image.id, image.name);
       onActivateImage(image);
     }
     
@@ -322,7 +313,6 @@ const DroneImageryModal: React.FC<DroneImageryModalProps> = ({ isOpen, onClose, 
     // Add files to form data
     Array.from(files).forEach(file => {
       formData.append('imagery', file);
-      console.log('Added file:', file.name, file.type, file.size);
     });
     
     // Add default metadata
@@ -332,8 +322,6 @@ const DroneImageryModal: React.FC<DroneImageryModalProps> = ({ isOpen, onClose, 
     formData.append('capturedAt', new Date().toISOString());
     
     try {
-      console.log('Starting upload...');
-      
       // Use XMLHttpRequest for progress tracking
       const xhr = new XMLHttpRequest();
       
@@ -349,7 +337,6 @@ const DroneImageryModal: React.FC<DroneImageryModalProps> = ({ isOpen, onClose, 
       xhr.onload = () => {
         if (xhr.status === 200 || xhr.status === 201) {
           const result = JSON.parse(xhr.responseText);
-          console.log('Upload successful:', result);
           setUploadState({ isUploading: false, fileName: '', fileSize: 0, bytesUploaded: 0 });
           queryClient.invalidateQueries({ queryKey: ['/api/drone-images'] });
           toast({
@@ -571,11 +558,6 @@ const DroneImageryModal: React.FC<DroneImageryModalProps> = ({ isOpen, onClose, 
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      console.log('=== VIEW BUTTON CLICKED ===');
-                      console.log('Image ID:', image.id);
-                      console.log('Image Name:', image.name);
-                      
-                      // Always call handleActivateImage to fly to this image
                       handleActivateImage(image);
                     }}
                     className="px-4 py-1.5 rounded text-sm font-medium transition-colors bg-green-600 text-white hover:bg-green-700"
@@ -590,8 +572,6 @@ const DroneImageryModal: React.FC<DroneImageryModalProps> = ({ isOpen, onClose, 
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log('=== HIDE BUTTON CLICKED ===');
-                        console.log('Image ID:', image.id);
                         handleDeactivateImage(image.id);
                       }}
                       className="px-4 py-1.5 rounded text-sm font-medium transition-colors bg-red-600 text-white hover:bg-red-700"
