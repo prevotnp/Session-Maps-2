@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ArrowLeft, Upload, Trash2, Pencil, Eye, MapPin, Cloud, HardDrive, CheckCircle, Clock, AlertCircle, Loader2, X } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Pencil, Eye, MapPin, Cloud, HardDrive, CheckCircle, Clock, AlertCircle, Loader2, X, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -366,7 +366,18 @@ export default function UploadManagement() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Map
           </Button>
-          <h1 className="text-lg font-semibold">Upload Management</h1>
+          <h1 className="text-lg font-semibold flex-1">Upload Management</h1>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-gray-900 border-primary/30 text-primary hover:bg-primary/10"
+              onClick={() => navigate('/admin')}
+            >
+              <Building2 className="w-4 h-4 mr-2" />
+              Enterprise Management
+            </Button>
+          )}
         </div>
       </div>
 
