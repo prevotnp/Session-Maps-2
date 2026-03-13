@@ -369,7 +369,7 @@ const RoutesModal: React.FC<RoutesModalProps> = ({ isOpen, onClose, onSelectRout
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <RouteIcon className="h-5 w-5" />
-              Saved Routes
+              Saved Maps
             </DialogTitle>
           </DialogHeader>
           
@@ -391,14 +391,14 @@ const RoutesModal: React.FC<RoutesModalProps> = ({ isOpen, onClose, onSelectRout
           <div className="space-y-6">
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground">
-                Loading routes...
+                Loading maps...
               </div>
             ) : routes.length === 0 ? (
               <div className="text-center py-8">
                 <RouteIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground mb-4">No routes saved yet</p>
+                <p className="text-muted-foreground mb-4">No maps saved yet</p>
                 <p className="text-sm text-muted-foreground">
-                  Create your first route using the Route Builder tool
+                  Create your first map using the Route Builder tool
                 </p>
               </div>
             ) : (
@@ -407,7 +407,7 @@ const RoutesModal: React.FC<RoutesModalProps> = ({ isOpen, onClose, onSelectRout
                 {myRoutes.length > 0 && (
                   <div>
                     <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
-                      My Routes ({myRoutes.length})
+                      My Maps ({myRoutes.length})
                     </h3>
 
                     {myRoutes.length > 1 && (
@@ -415,7 +415,7 @@ const RoutesModal: React.FC<RoutesModalProps> = ({ isOpen, onClose, onSelectRout
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
                           type="text"
-                          placeholder="Search routes..."
+                          placeholder="Search maps..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="pl-9 pr-9 h-10 w-full"
@@ -454,7 +454,7 @@ const RoutesModal: React.FC<RoutesModalProps> = ({ isOpen, onClose, onSelectRout
                 {sharedWithMe.length > 0 && (
                   <div>
                     <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
-                      Routes Shared with Me ({sharedWithMe.length})
+                      Maps Shared with Me ({sharedWithMe.length})
                     </h3>
                     <div className="space-y-4">
                       {filteredSharedRoutes.map((route) => (

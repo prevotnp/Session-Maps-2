@@ -1159,7 +1159,7 @@ export default function CesiumViewer() {
               onClick={handleOpenRouteBuilder}
             >
               <Plus className="w-4 h-4 mr-1" />
-              Build New Route
+              Build New Map
             </Button>
           </div>
         </div>

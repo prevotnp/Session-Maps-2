@@ -170,7 +170,7 @@ const Profile: React.FC = () => {
             <div className="flex items-center gap-3">
               <RouteIcon className="h-5 w-5 text-blue-400" />
               <div>
-                <div className="font-medium text-white">My Routes</div>
+                <div className="font-medium text-white">My Maps</div>
                 <div className="text-xs text-gray-400">
                   {profile ? `${profile.publicRouteCount} public · ${profile.routes.length} total` : '—'}
                 </div>

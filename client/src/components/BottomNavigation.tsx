@@ -113,7 +113,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onTabChange }) => {
           data-testid="button-routes"
         >
           <Route className="h-6 w-6 sm:h-7 sm:w-7" />
-          <span className="text-[10px] sm:text-xs mt-1 font-medium">Routes</span>
+          <span className="text-[10px] sm:text-xs mt-1 font-medium">My Maps</span>
         </button>
         
         <button 
