@@ -17,4 +17,9 @@ export const pool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
 });
+
+pool.on('error', (err) => {
+  console.error('Database pool error (connection will be retried):', err.message);
+});
+
 export const db = drizzle({ client: pool, schema });
