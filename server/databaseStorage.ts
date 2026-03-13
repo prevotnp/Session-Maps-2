@@ -29,6 +29,7 @@ import {
   liveMapGpsTracks,
   deviceTokens,
   passwordResetTokens,
+  backgroundLocationTokens,
   activities,
   directMessages,
   type User,
@@ -84,6 +85,7 @@ import {
   type DeviceToken,
   type InsertDeviceToken,
   type PasswordResetToken,
+  type BackgroundLocationToken,
   type Activity,
   type InsertActivity,
   type DirectMessage,
@@ -1740,5 +1742,51 @@ export class DatabaseStorage implements IStorage {
         )
       );
     return result[0]?.count || 0;
+  }
+
+  // Background location token operations
+  async createBackgroundLocationToken(
+    userId: number,
+    sessionId: number,
+    token: string,
+    expiresAt: Date
+  ): Promise<BackgroundLocationToken> {
+    // Delete any existing tokens for this user/session combo
+    await db
+      .delete(backgroundLocationTokens)
+      .where(
+        and(
+          eq(backgroundLocationTokens.userId, userId),
+          eq(backgroundLocationTokens.sessionId, sessionId)
+        )
+      );
+
+    const [created] = await db
+      .insert(backgroundLocationTokens)
+      .values({ userId, sessionId, token, expiresAt })
+      .returning();
+    return created;
+  }
+
+  async getBackgroundLocationToken(token: string): Promise<BackgroundLocationToken | undefined> {
+    const [result] = await db
+      .select()
+      .from(backgroundLocationTokens)
+      .where(eq(backgroundLocationTokens.token, token));
+    return result;
+  }
+
+  async deleteBackgroundLocationTokensForSession(
+    userId: number,
+    sessionId: number
+  ): Promise<void> {
+    await db
+      .delete(backgroundLocationTokens)
+      .where(
+        and(
+          eq(backgroundLocationTokens.userId, userId),
+          eq(backgroundLocationTokens.sessionId, sessionId)
+        )
+      );
   }
 }

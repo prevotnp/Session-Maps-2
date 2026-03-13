@@ -23,6 +23,10 @@ const config: CapacitorConfig = {
     Geolocation: {
       permissions: ['whenInUse', 'always'],
     },
+    BackgroundGeolocation: {
+      // Background location tracking for live team map sessions
+      // License key required for production builds
+    },
     SplashScreen: {
       launchAutoHide: true,
       launchShowDuration: 2000,

@@ -25,6 +25,7 @@ import {
   LiveMapInvite, InsertLiveMapInvite,
   DeviceToken, InsertDeviceToken,
   PasswordResetToken,
+  BackgroundLocationToken,
   Activity, InsertActivity,
   Cesium3dTileset, InsertCesium3dTileset,
   DirectMessage, InsertDirectMessage
@@ -249,6 +250,11 @@ export interface IStorage {
   }>>;
   deleteDirectMessage(messageId: number, userId: number): Promise<boolean>;
   getUnreadMessageCount(userId: number): Promise<number>;
+
+  // Background location tokens
+  createBackgroundLocationToken(userId: number, sessionId: number, token: string, expiresAt: Date): Promise<BackgroundLocationToken>;
+  getBackgroundLocationToken(token: string): Promise<BackgroundLocationToken | undefined>;
+  deleteBackgroundLocationTokensForSession(userId: number, sessionId: number): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -587,6 +593,18 @@ export class MemStorage implements IStorage {
 
   async deleteCesium3dTileset(id: number): Promise<boolean> {
     return this.cesium3dTilesets.delete(id);
+  }
+
+  async createBackgroundLocationToken(userId: number, sessionId: number, token: string, expiresAt: Date): Promise<BackgroundLocationToken> {
+    throw new Error("Not implemented in MemStorage");
+  }
+
+  async getBackgroundLocationToken(token: string): Promise<BackgroundLocationToken | undefined> {
+    return undefined;
+  }
+
+  async deleteBackgroundLocationTokensForSession(userId: number, sessionId: number): Promise<void> {
+    // no-op
   }
 }
 

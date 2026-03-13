@@ -357,6 +357,16 @@ export const liveMapGpsTracks = pgTable("live_map_gps_tracks", {
   endedAt: timestamp("ended_at"),
 });
 
+// Background location tokens - for native apps to POST location updates from background
+export const backgroundLocationTokens = pgTable("background_location_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sessionId: integer("session_id").notNull().references(() => liveMapSessions.id, { onDelete: 'cascade' }),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Password reset tokens
 export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: serial("id").primaryKey(),
@@ -801,6 +811,7 @@ export type LiveMapGpsTrack = typeof liveMapGpsTracks.$inferSelect;
 export type InsertDeviceToken = z.infer<typeof insertDeviceTokenSchema>;
 export type DeviceToken = typeof deviceTokens.$inferSelect;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type BackgroundLocationToken = typeof backgroundLocationTokens.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type Activity = typeof activities.$inferSelect;
 export type InsertDirectMessage = z.infer<typeof insertDirectMessageSchema>;

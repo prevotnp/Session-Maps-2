@@ -160,7 +160,16 @@ export default function Explore() {
     });
     
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    
+
+    // Restyle mountain peak names to smokey blue
+    map.current.on('load', () => {
+      try {
+        if (map.current?.getLayer('natural-point-label')) {
+          map.current.setPaintProperty('natural-point-label', 'text-color', '#7B9DB7');
+        }
+      } catch (e) { /* layer may not exist */ }
+    });
+
     return () => {
       if (map.current) {
         map.current.remove();

@@ -3279,9 +3279,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Store connected clients
   const clients: Map<number, WebSocket> = new Map();
-  
+
   // Store live map session rooms: sessionId -> Set of userIds
   const sessionRooms: Map<number, Set<number>> = new Map();
+
+  // Grace period timers for WebSocket disconnects (background location may still be active)
+  const disconnectTimers: Map<string, NodeJS.Timeout> = new Map();
   
   function broadcastToSession(sessionId: number, message: any) {
     const room = sessionRooms.get(sessionId);
@@ -3356,12 +3359,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           currentSessionId = sessionId;
-          
+
+          // Clear any pending disconnect timer (user reconnected)
+          const timerKey = `${sessionId}:${userId}`;
+          const existingTimer = disconnectTimers.get(timerKey);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+            disconnectTimers.delete(timerKey);
+          }
+
           if (!sessionRooms.has(sessionId)) {
             sessionRooms.set(sessionId, new Set());
           }
           sessionRooms.get(sessionId)!.add(userId);
-          
+
           ws.send(JSON.stringify({
             type: 'session:joined',
             sessionId
@@ -3437,20 +3448,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     ws.on('close', () => {
       clients.delete(userId);
-      
+
       if (currentSessionId) {
-        const room = sessionRooms.get(currentSessionId);
-        if (room) {
-          room.delete(userId);
-          if (room.size === 0) {
-            sessionRooms.delete(currentSessionId);
-          } else {
-            broadcastToSession(currentSessionId, {
-              type: 'member:disconnected',
-              data: { userId }
-            });
+        const sessionIdForTimer = currentSessionId;
+        const timerKey = `${sessionIdForTimer}:${userId}`;
+
+        // Clear any existing timer for this user
+        const existing = disconnectTimers.get(timerKey);
+        if (existing) clearTimeout(existing);
+
+        // Grace period: wait 30s before broadcasting disconnect
+        // Background location HTTP updates will cancel this timer
+        const timer = setTimeout(() => {
+          disconnectTimers.delete(timerKey);
+          const room = sessionRooms.get(sessionIdForTimer);
+          if (room) {
+            room.delete(userId);
+            if (room.size === 0) {
+              sessionRooms.delete(sessionIdForTimer);
+            } else {
+              broadcastToSession(sessionIdForTimer, {
+                type: 'member:disconnected',
+                data: { userId }
+              });
+            }
           }
-        }
+        }, 30000);
+
+        disconnectTimers.set(timerKey, timer);
       }
     });
   });
@@ -3461,18 +3486,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const deadUserId = ws.authenticatedUserId;
         if (deadUserId) {
           clients.delete(deadUserId);
-          
+
           sessionRooms.forEach((room, sessionId) => {
             if (room.has(deadUserId)) {
-              room.delete(deadUserId);
-              if (room.size === 0) {
-                sessionRooms.delete(sessionId);
-              } else {
-                broadcastToSession(sessionId, {
-                  type: 'member:disconnected',
-                  data: { userId: deadUserId }
-                });
-              }
+              const timerKey = `${sessionId}:${deadUserId}`;
+              const existingTimer = disconnectTimers.get(timerKey);
+              if (existingTimer) clearTimeout(existingTimer);
+
+              // Grace period: background HTTP updates may still be arriving
+              const timer = setTimeout(() => {
+                disconnectTimers.delete(timerKey);
+                const currentRoom = sessionRooms.get(sessionId);
+                if (currentRoom && currentRoom.has(deadUserId)) {
+                  currentRoom.delete(deadUserId);
+                  if (currentRoom.size === 0) {
+                    sessionRooms.delete(sessionId);
+                  } else {
+                    broadcastToSession(sessionId, {
+                      type: 'member:disconnected',
+                      data: { userId: deadUserId }
+                    });
+                  }
+                }
+              }, 30000);
+
+              disconnectTimers.set(timerKey, timer);
             }
           });
         }
@@ -4778,6 +4816,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching GPS tracks:', error);
       res.status(500).json({ error: "Failed to fetch GPS tracks" });
+    }
+  });
+
+  // Generate a background location token for native app background tracking
+  app.post("/api/live-maps/:id/background-token", isAuthenticated, async (req: Request, res: Response) => {
+    const sessionId = parseId(req.params.id);
+    if (!sessionId) {
+      return res.status(400).json({ message: "Invalid ID" });
+    }
+
+    try {
+      const isMember = await dbStorage.isLiveMapMember(sessionId, req.user!.id);
+      const session = await dbStorage.getLiveMapSession(sessionId);
+
+      if (!session || (!isMember && session.ownerId !== req.user!.id)) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      if (!session.isActive) {
+        return res.status(400).json({ error: "Session has ended" });
+      }
+
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      await dbStorage.createBackgroundLocationToken(req.user!.id, sessionId, token, expiresAt);
+
+      res.json({ token, expiresAt: expiresAt.toISOString() });
+    } catch (error) {
+      console.error('Error generating background location token:', error);
+      res.status(500).json({ error: "Failed to generate token" });
+    }
+  });
+
+  // Receive background location updates from native app (token-based auth)
+  app.post("/api/live-maps/:id/background-location", async (req: Request, res: Response) => {
+    const sessionId = parseId(req.params.id);
+    if (!sessionId) {
+      return res.status(400).json({ message: "Invalid ID" });
+    }
+
+    // Authenticate via Bearer token (native background HTTP client may not have session cookies)
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: "Missing authorization token" });
+    }
+
+    const token = authHeader.slice(7);
+
+    try {
+      const tokenRecord = await dbStorage.getBackgroundLocationToken(token);
+      if (!tokenRecord || tokenRecord.sessionId !== sessionId) {
+        return res.status(401).json({ error: "Invalid token" });
+      }
+
+      if (new Date(tokenRecord.expiresAt) < new Date()) {
+        return res.status(401).json({ error: "Token expired" });
+      }
+
+      const { latitude, longitude, accuracy, heading } = req.body;
+      if (latitude == null || longitude == null) {
+        return res.status(400).json({ error: "latitude and longitude are required" });
+      }
+
+      const userId = tokenRecord.userId;
+
+      // Update member location in DB (same as WebSocket handler)
+      await dbStorage.updateLiveMapMemberLocation(
+        sessionId,
+        userId,
+        String(latitude),
+        String(longitude),
+        accuracy != null ? String(accuracy) : undefined,
+        heading != null ? String(heading) : undefined
+      );
+
+      // Broadcast to all connected WebSocket clients in the session
+      broadcastToSession(sessionId, {
+        type: 'member:locationUpdate',
+        data: { userId, latitude, longitude, accuracy, heading }
+      });
+
+      // Clear any pending disconnect timer for this user
+      const timerKey = `${sessionId}:${userId}`;
+      const existingTimer = disconnectTimers.get(timerKey);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+        disconnectTimers.delete(timerKey);
+      }
+
+      res.json({ ok: true });
+    } catch (error) {
+      console.error('Error processing background location:', error);
+      res.status(500).json({ error: "Failed to process location" });
     }
   });
 

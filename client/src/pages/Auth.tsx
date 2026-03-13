@@ -30,10 +30,6 @@ export default function Auth() {
     onSuccess: async (user: User) => {
       queryClient.setQueryData(["/api/auth/user"], user);
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      toast({
-        title: "Welcome back!",
-        description: "Successfully logged in.",
-      });
       setLocation("/");
     },
     onError: (error: Error) => {

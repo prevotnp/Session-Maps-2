@@ -1407,6 +1407,16 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
     // Wait for map to load
     map.on('load', () => {
       console.log('Map loaded successfully');
+
+      // Restyle mountain peak names to smokey blue
+      try {
+        if (map.getLayer('natural-point-label')) {
+          map.setPaintProperty('natural-point-label', 'text-color', '#7B9DB7');
+        }
+      } catch (e) {
+        console.warn('Could not restyle peak labels:', e);
+      }
+
       // Start with Esri 3D imagery
       addEsriWorldImagery(map);
       setIsTrailInfoLoading(true);
@@ -1619,8 +1629,17 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
     
     setActiveLayers(newActiveLayers);
     
-    // Restore 3D terrain after style change
+    // Restore styles after style change
     map.once('style.load', () => {
+      // Restyle mountain peak names to smokey blue
+      try {
+        if (map.getLayer('natural-point-label')) {
+          map.setPaintProperty('natural-point-label', 'text-color', '#7B9DB7');
+        }
+      } catch (e) {
+        // Layer may not exist in all styles
+      }
+
       // Re-add terrain source
       if (!map.getSource('mapbox-dem')) {
         map.addSource('mapbox-dem', {

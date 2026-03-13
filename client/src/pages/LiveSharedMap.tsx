@@ -39,6 +39,8 @@ import {
 import { PiBirdFill } from "react-icons/pi";
 import { cn } from "@/lib/utils";
 import { addUserLocationToMap } from "@/lib/mapUtils";
+import { isNative } from "@/lib/capacitor";
+import { startBackgroundTracking, stopBackgroundTracking } from "@/lib/backgroundLocation";
 import type { DroneImage } from "@shared/schema";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -654,6 +656,13 @@ export default function LiveSharedMap() {
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
     
     map.current.on('load', () => {
+      // Restyle mountain peak names to smokey blue
+      try {
+        if (map.current?.getLayer('natural-point-label')) {
+          map.current.setPaintProperty('natural-point-label', 'text-color', '#7B9DB7');
+        }
+      } catch (e) { /* layer may not exist */ }
+
       setMapReady(true);
     });
     
@@ -1159,6 +1168,20 @@ export default function LiveSharedMap() {
         reconnectAttemptRef.current = 0;
         ws.send(JSON.stringify({ type: 'auth', userId: user.id }));
         ws.send(JSON.stringify({ type: 'session:join', sessionId }));
+
+        // Start background location tracking on native platforms
+        if (isNative && sessionId) {
+          apiRequest('POST', `/api/live-maps/${sessionId}/background-token`)
+            .then(res => res.json())
+            .then(({ token }) => {
+              startBackgroundTracking({
+                sessionId,
+                serverUrl: window.location.origin,
+                authToken: token,
+              });
+            })
+            .catch(err => console.error('Failed to start background tracking:', err));
+        }
       };
       
       ws.onmessage = (event) => {
@@ -1227,6 +1250,7 @@ export default function LiveSharedMap() {
         wsRef.current.close();
         wsRef.current = null;
       }
+      stopBackgroundTracking();
     };
   }, [sessionId, user]);
   
