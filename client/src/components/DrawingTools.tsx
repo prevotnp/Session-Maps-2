@@ -57,7 +57,7 @@ const DrawingTools: React.FC<DrawingToolsProps> = ({
   }, [currentDrawing?.points]);
 
   return (
-    <div className="absolute top-20 left-2 z-10 p-2 bg-white/80 backdrop-blur-sm rounded-lg shadow-md">
+    <div className="absolute top-20 left-2 z-10 p-2 bg-white/80 backdrop-blur-sm rounded-lg shadow-md" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
       <div className="flex flex-col gap-2">
         {!isDrawing ? (
           <>

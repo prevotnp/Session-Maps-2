@@ -248,7 +248,7 @@ export default function EnterprisePortal() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4">
+    <div className="min-h-screen bg-background px-4 pb-4" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))' }}>
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">

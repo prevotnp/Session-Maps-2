@@ -1691,6 +1691,7 @@ const MapView: React.FC<MapViewProps> = ({
       {isMeasurementMode && (
         <div
           className="absolute top-24 left-1/2 transform -translate-x-1/2 z-50 bg-dark/95 backdrop-blur-sm rounded-xl shadow-2xl border border-white/20 px-4 py-3 animate-in fade-in duration-300"
+          style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}
           data-testid="measurement-notification"
         >
           <div className="flex items-center gap-4">
@@ -1786,7 +1787,7 @@ const MapView: React.FC<MapViewProps> = ({
       
       {/* Route Edit Toolbar - appears when editing a displayed route */}
       {isEditingDisplayedRoute && routeBeingEdited && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 w-[95%] max-w-lg">
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 w-[95%] max-w-lg" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="bg-dark/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-white">
@@ -2080,7 +2081,7 @@ const MapView: React.FC<MapViewProps> = ({
       
       {/* Save Route Button - appears during route building at top center */}
       {isRouteBuildingMode && routeWaypoints.length >= 2 && (
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-10">
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-10" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
           <Button
             className="h-10 px-4 shadow-lg bg-green-600 hover:bg-green-700 text-white border-0"
             onClick={handleSaveRoute}
@@ -2094,7 +2095,7 @@ const MapView: React.FC<MapViewProps> = ({
       
       {/* Offline Selection Controls - appears during offline area selection */}
       {isOfflineSelectionMode && (
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-10 flex gap-2">
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-10 flex gap-2" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
           {offlineSelectionBounds && (
             <Button
               className="h-10 px-4 shadow-lg bg-blue-600 hover:bg-blue-700 text-white border-0"
@@ -2203,7 +2204,7 @@ const MapView: React.FC<MapViewProps> = ({
       
       {/* Drawing Tools */}
       {showDrawingTools && (
-        <div className="absolute top-40 right-4 z-10">
+        <div className="absolute top-40 right-4 z-10" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
           <DrawingTools 
             isDrawing={!!drawingMode}
             drawingMode={drawingMode}
@@ -2396,7 +2397,7 @@ const MapView: React.FC<MapViewProps> = ({
       
       {/* Recording Indicator */}
       {isRecording && (
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50">
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="bg-red-600 text-white px-4 py-3 rounded-xl flex flex-col items-center gap-1 shadow-lg">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-white rounded-full animate-pulse" />

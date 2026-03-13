@@ -354,7 +354,7 @@ export default function RecordingOverlay({ map, isVisible, onClose, onDisplayRou
         <div className="flex-1" />
 
         {hasPersistedSession && (
-          <div className="absolute top-20 left-0 right-0 pointer-events-auto px-3">
+          <div className="absolute top-20 left-0 right-0 pointer-events-auto px-3" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
             <div className="bg-amber-900/95 backdrop-blur-md border border-amber-600 rounded-xl p-4 shadow-2xl">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-3 h-3 rounded-full bg-amber-400 animate-pulse" />
@@ -591,7 +591,7 @@ export default function RecordingOverlay({ map, isVisible, onClose, onDisplayRou
   }
 
   return (
-    <div className="absolute top-0 left-0 right-0 z-30 pointer-events-auto">
+    <div className="absolute top-0 left-0 right-0 z-30 pointer-events-auto" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <div className="bg-slate-800/95 backdrop-blur-md border-b border-slate-700 shadow-2xl">
         <div className="flex items-center justify-center gap-1.5 py-1 bg-red-600">
           <div className="w-2 h-2 bg-white rounded-full animate-pulse" />

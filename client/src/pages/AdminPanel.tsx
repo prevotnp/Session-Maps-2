@@ -336,7 +336,7 @@ export default function AdminPanel() {
 
   if (showUploadModal) {
     return (
-      <div className="min-h-screen bg-background p-4">
+      <div className="min-h-screen bg-background px-4 pb-4" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))' }}>
         <DroneImageryUpload
           onClose={() => setShowUploadModal(false)}
           onUploadSuccess={handleUploadSuccess}
@@ -346,7 +346,7 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4">
+    <div className="min-h-screen bg-background px-4 pb-4" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))' }}>
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>

@@ -34,7 +34,7 @@ export const UploadProgress: React.FC<UploadProgressProps> = ({
   };
 
   return (
-    <div className="fixed top-4 left-2 right-2 sm:left-1/2 sm:right-auto sm:transform sm:-translate-x-1/2 bg-dark border border-white/10 rounded-lg p-4 z-50 shadow-lg">
+    <div className="fixed top-4 left-2 right-2 sm:left-1/2 sm:right-auto sm:transform sm:-translate-x-1/2 bg-dark border border-white/10 rounded-lg p-4 z-50 shadow-lg" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
       <div className="w-full sm:w-80">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">

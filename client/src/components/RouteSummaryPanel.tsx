@@ -652,6 +652,7 @@ export function RouteSummaryPanel({
   return (
     <div 
       className="absolute top-2 left-2 right-2 sm:left-auto sm:top-4 sm:right-4 z-50 sm:w-72"
+      style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}
       data-testid="route-summary-panel"
     >
       <div className="bg-dark/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 overflow-hidden max-h-[25vh] sm:max-h-[calc(100vh-120px)] overflow-y-auto">

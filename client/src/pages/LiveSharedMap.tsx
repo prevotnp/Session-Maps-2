@@ -1853,7 +1853,7 @@ export default function LiveSharedMap() {
           <div ref={mapContainer} className="absolute inset-0" />
           
           {/* GPS Center Button */}
-          <div className="absolute top-40 right-4 z-10">
+          <div className="absolute top-40 right-4 z-10" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
             <button
               onClick={() => {
                 if (userLocationRef.current && map.current) {
@@ -2077,7 +2077,7 @@ export default function LiveSharedMap() {
           
           {/* Measurement Panel - Local only */}
           {isMeasuring && (
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-sm rounded-xl px-4 py-3 shadow-lg border border-gray-700 z-20">
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-sm rounded-xl px-4 py-3 shadow-lg border border-gray-700 z-20" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
               <div className="flex items-center gap-4">
                 <div className="text-center">
                   <p className="text-xs text-gray-400 mb-1">
@@ -2132,7 +2132,7 @@ export default function LiveSharedMap() {
           
           {/* Draw Route Mode Banner */}
           {isDrawingRoute && (
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-sm rounded-xl px-4 py-3 shadow-lg border border-blue-500 z-20">
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-sm rounded-xl px-4 py-3 shadow-lg border border-blue-500 z-20" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
               <div className="flex items-center gap-4">
                 <div className="text-center">
                   <p className="text-xs text-gray-400 mb-1">
@@ -2186,7 +2186,7 @@ export default function LiveSharedMap() {
           
           {/* Edit Shared Route Mode Toolbar */}
           {isEditingSharedRoute && selectedSharedRoute && (
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-sm rounded-xl px-4 py-3 shadow-lg border border-amber-500 z-20">
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-sm rounded-xl px-4 py-3 shadow-lg border border-amber-500 z-20" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
               <div className="flex items-center gap-4">
                 <div className="text-center">
                   <p className="text-xs text-gray-400 mb-1">
@@ -2312,7 +2312,7 @@ export default function LiveSharedMap() {
           
           {/* Add Waypoint Mode Banner */}
           {isAddingPoi && (
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-orange-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 z-20">
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-orange-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 z-20" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
               <MapPin className="w-5 h-5" />
               <span>Tap on map to place waypoint</span>
               <Button 

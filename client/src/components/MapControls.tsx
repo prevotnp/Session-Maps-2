@@ -21,7 +21,7 @@ const MapControls: React.FC<MapControlsProps> = ({
   onToggleMeasurement
 }) => {
   return (
-    <div className="absolute top-24 right-4 z-10 flex flex-col space-y-3">
+    <div className="absolute top-24 right-4 z-10 flex flex-col space-y-3" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
       <button 
         className="bg-dark/80 rounded-full p-3 min-w-[44px] min-h-[44px] backdrop-blur-sm active:scale-95 transition-transform" 
         onClick={onZoomIn}

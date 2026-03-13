@@ -28,7 +28,7 @@ export default function DroneAdjustmentControls({
   if (!isVisible) return null;
 
   return (
-    <div className="absolute top-4 left-2 right-2 sm:left-auto sm:right-4 bg-white rounded-lg shadow-lg p-4 z-50 sm:w-80">
+    <div className="absolute top-4 left-2 right-2 sm:left-auto sm:right-4 bg-white rounded-lg shadow-lg p-4 z-50 sm:w-80" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Settings2 className="h-5 w-5" />
