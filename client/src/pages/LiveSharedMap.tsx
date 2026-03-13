@@ -652,10 +652,21 @@ export default function LiveSharedMap() {
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
     
     map.current.on('load', () => {
-      // Restyle mountain peak names to smokey blue
+      // Restyle mountain peak labels: saturated blue + elevation in feet
       try {
         if (map.current?.getLayer('natural-point-label')) {
-          map.current.setPaintProperty('natural-point-label', 'text-color', '#7B9DB7');
+          map.current.setPaintProperty('natural-point-label', 'text-color', '#4A9FE5');
+          map.current.setLayoutProperty('natural-point-label', 'text-field', [
+            'case',
+            ['has', 'elevation_m'],
+            ['concat',
+              ['get', 'name'],
+              '\n',
+              ['number-format', ['round', ['*', ['get', 'elevation_m'], 3.28084]], { 'locale': 'en-US' }],
+              ' ft'
+            ],
+            ['get', 'name']
+          ]);
         }
       } catch (e) { /* layer may not exist */ }
 
