@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { PiBirdFill } from "react-icons/pi";
 import { cn } from "@/lib/utils";
+import mapboxgl from "mapbox-gl";
 import { addUserLocationToMap, getElevation } from "@/lib/mapUtils";
 import { isNative } from "@/lib/capacitor";
 import { startBackgroundTracking, stopBackgroundTracking } from "@/lib/backgroundLocation";
