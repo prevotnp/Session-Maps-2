@@ -5,6 +5,8 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import type { Activity, InsertActivity } from '@shared/schema';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useBackgroundResilience } from '@/hooks/useBackgroundResilience';
+import { startKeepAlive, stopKeepAlive } from '@/lib/silentAudioKeepAlive';
+import { isNative } from '@/lib/capacitor';
 
 export type ActivityType = 'run' | 'ski' | 'hike' | 'bike';
 
@@ -377,7 +379,11 @@ export function useActivityRecording() {
     [toast]
   );
 
+  const isMobilePwa = !isNative && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
   const handleForegroundResume = useCallback(() => {
+    stopKeepAlive();
+
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
     }
@@ -402,9 +408,16 @@ export function useActivityRecording() {
     console.log('Activity recording: GPS and timer resumed after foreground return');
   }, [handlePositionUpdate, handlePositionError]);
 
+  const handleBackgroundEnter = useCallback(() => {
+    if (isMobilePwa) {
+      startKeepAlive();
+    }
+  }, [isMobilePwa]);
+
   useBackgroundResilience({
     isActive: state.isRecording,
     onForegroundResume: handleForegroundResume,
+    onBackgroundEnter: handleBackgroundEnter,
     label: 'ActivityRecording',
   });
 
@@ -581,6 +594,7 @@ export function useActivityRecording() {
       timerRef.current = null;
     }
 
+    stopKeepAlive();
     wakeLock.release();
 
     setState((prev) => ({
