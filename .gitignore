@@ -12,3 +12,5 @@ public/drone-tiles/
 *.pack
 cookies.txt
 mobile_cookies.txt
+
+.env

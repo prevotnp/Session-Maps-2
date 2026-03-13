@@ -38,13 +38,9 @@ import {
 } from "lucide-react";
 import { PiBirdFill } from "react-icons/pi";
 import { cn } from "@/lib/utils";
-import { addUserLocationToMap } from "@/lib/mapUtils";
+import { addUserLocationToMap, getElevation } from "@/lib/mapUtils";
 import { isNative } from "@/lib/capacitor";
 import { startBackgroundTracking, stopBackgroundTracking } from "@/lib/backgroundLocation";
-import type { DroneImage } from "@shared/schema";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
-
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
 // Color palette for different users in live map sessions
