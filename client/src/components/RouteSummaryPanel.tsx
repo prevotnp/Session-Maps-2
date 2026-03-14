@@ -757,7 +757,7 @@ export function RouteSummaryPanel({
                     }`}
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    {isAddingWaypoint ? '+ Adding' : 'Add'}
+                    {isAddingWaypoint ? 'Adding' : 'Add'}
                   </button>
                 )}
               </div>
