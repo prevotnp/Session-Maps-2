@@ -231,6 +231,7 @@ export default function LiveSharedMap() {
   const droneDropdownRef = useRef<HTMLDivElement>(null);
   const bgTokenRef = useRef<string | null>(null);
   const bgIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const signalLostWaypointsRef = useRef<mapboxgl.Marker[]>([]);
 
   const stopPwaBackgroundPolling = useCallback(() => {
     if (bgIntervalRef.current) {
@@ -680,6 +681,8 @@ export default function LiveSharedMap() {
         mapInitialized.current = false;
         setMapReady(false);
         memberMarkersRef.current.clear();
+        signalLostWaypointsRef.current.forEach(m => m.remove());
+        signalLostWaypointsRef.current = [];
         poiMarkersRef.current.clear();
       }
     };
@@ -1389,17 +1392,83 @@ export default function LiveSharedMap() {
     
     const existingMarker = memberMarkersRef.current.get(userId);
     if (existingMarker) {
-      existingMarker.setLngLat([lng, lat]);
+      // Check if the member was in signal-lost state — if so, leave a waypoint at the old location
       const el = existingMarker.getElement();
       const dot = el?.querySelector('.member-dot') as HTMLElement;
+      const lostOverlay = el?.querySelector('.signal-lost-overlay') as HTMLElement;
+      const lostLabel = el?.querySelector('.signal-lost-label') as HTMLElement;
+
+      if (lostOverlay && lostOverlay.style.display === 'block' && map.current) {
+        // Create a static "signal lost" waypoint at the old position
+        const oldLngLat = existingMarker.getLngLat();
+        const lostTimeText = lostLabel?.textContent || 'Signal Lost';
+
+        const wpContainer = document.createElement('div');
+        wpContainer.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none;';
+
+        const wpDot = document.createElement('div');
+        wpDot.style.cssText = `
+          width: 14px;
+          height: 14px;
+          background: ${color};
+          opacity: 0.4;
+          border: 2px solid white;
+          border-radius: 50%;
+          filter: drop-shadow(0 1px 4px rgba(0,0,0,0.3));
+        `;
+
+        const wpBadge = document.createElement('div');
+        wpBadge.style.cssText = `
+          position: absolute;
+          top: -3px;
+          right: -3px;
+          width: 12px;
+          height: 12px;
+          background: #ef4444;
+          border: 1.5px solid white;
+          border-radius: 50%;
+          font-size: 7px;
+          font-weight: 900;
+          color: white;
+          line-height: 9px;
+          text-align: center;
+        `;
+        wpBadge.textContent = '✕';
+
+        const wpDotWrapper = document.createElement('div');
+        wpDotWrapper.style.cssText = 'position:relative;display:inline-block;';
+        wpDotWrapper.appendChild(wpDot);
+        wpDotWrapper.appendChild(wpBadge);
+
+        const wpLabel = document.createElement('div');
+        wpLabel.textContent = lostTimeText;
+        wpLabel.style.cssText = `
+          font-size: 9px;
+          font-weight: 600;
+          color: #fca5a5;
+          text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+          white-space: nowrap;
+          margin-top: 1px;
+        `;
+
+        wpContainer.appendChild(wpDotWrapper);
+        wpContainer.appendChild(wpLabel);
+
+        const wpMarker = new mapboxgl.Marker({ element: wpContainer, anchor: 'top' })
+          .setLngLat([oldLngLat.lng, oldLngLat.lat])
+          .addTo(map.current);
+
+        signalLostWaypointsRef.current.push(wpMarker);
+      }
+
+      // Move the live marker to the new position and reset signal-lost state
+      existingMarker.setLngLat([lng, lat]);
       if (dot) {
         dot.style.background = color;
         dot.style.animation = 'member-pulse 2s ease-in-out infinite';
         dot.style.opacity = '1';
       }
-      const lostOverlay = el?.querySelector('.signal-lost-overlay') as HTMLElement;
       if (lostOverlay) lostOverlay.style.display = 'none';
-      const lostLabel = el?.querySelector('.signal-lost-label') as HTMLElement;
       if (lostLabel) lostLabel.style.display = 'none';
     } else {
       const container = document.createElement('div');
