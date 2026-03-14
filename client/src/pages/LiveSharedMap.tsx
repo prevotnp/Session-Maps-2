@@ -232,6 +232,14 @@ export default function LiveSharedMap() {
   const bgTokenRef = useRef<string | null>(null);
   const bgIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const stopPwaBackgroundPolling = useCallback(() => {
+    if (bgIntervalRef.current) {
+      clearInterval(bgIntervalRef.current);
+      bgIntervalRef.current = null;
+    }
+    bgTokenRef.current = null;
+  }, []);
+
   // Track path history for each member during the session
   const [memberPaths, setMemberPaths] = useState<Map<number, [number, number][]>>(new Map());
   
@@ -1537,14 +1545,6 @@ export default function LiveSharedMap() {
   }, [user?.id]);
   
   const isMobilePwa = !isNative && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-  const stopPwaBackgroundPolling = useCallback(() => {
-    if (bgIntervalRef.current) {
-      clearInterval(bgIntervalRef.current);
-      bgIntervalRef.current = null;
-    }
-    bgTokenRef.current = null;
-  }, []);
 
   const startPwaBackgroundPolling = useCallback(async () => {
     if (!sessionId) return;
