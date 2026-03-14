@@ -97,7 +97,9 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
   const displayedRouteMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const displayedWaypointsRef = useRef<any[]>([]);
   const onWaypointDeletedRef = useRef<((remainingWaypoints: any[]) => void) | null>(null);
-  
+  const displayedRouteInsertMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const onWaypointInsertedRef = useRef<((insertAfterIndex: number, lngLat: [number, number]) => void) | null>(null);
+
   // All routes display state (for viewing all saved routes at once)
   const [allRoutesDisplayed, setAllRoutesDisplayed] = useState<any[]>([]);
   const allRoutesDisplayedRef = useRef<any[]>([]);
@@ -217,7 +219,11 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
     // Remove all waypoint markers
     displayedRouteMarkersRef.current.forEach(marker => marker.remove());
     displayedRouteMarkersRef.current = [];
-    
+
+    // Remove all insert "+" markers
+    displayedRouteInsertMarkersRef.current.forEach(marker => marker.remove());
+    displayedRouteInsertMarkersRef.current = [];
+
     // Clear displayed route state
     setDisplayedRoute(null);
   };
@@ -408,12 +414,14 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
   // onWaypointDragged: callback when a waypoint is dragged to a new position
   // onWaypointDeleted: callback when a waypoint is deleted from the route
   const displayRoute = (
-    route: any, 
-    isDraggable: boolean = false, 
+    route: any,
+    isDraggable: boolean = false,
     onWaypointDragged?: (waypointIndex: number, newLngLat: [number, number], allWaypoints: any[]) => void,
-    onWaypointDeleted?: (remainingWaypoints: any[]) => void
+    onWaypointDeleted?: (remainingWaypoints: any[]) => void,
+    onWaypointInserted?: (insertAfterIndex: number, lngLat: [number, number]) => void
   ) => {
     onWaypointDeletedRef.current = onWaypointDeleted || null;
+    onWaypointInsertedRef.current = onWaypointInserted || null;
     if (!mapRef.current) return;
     
     const map = mapRef.current;
@@ -664,7 +672,69 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
     });
     
     displayedRouteMarkersRef.current = newMarkers;
-    
+
+    // Add "+" insert markers between consecutive waypoints (only for route owners)
+    const insertMarkers: mapboxgl.Marker[] = [];
+    if (isDraggable && waypointsToDisplay.length >= 2) {
+      for (let i = 0; i < waypointsToDisplay.length - 1; i++) {
+        const wpA = waypointsToDisplay[i];
+        const wpB = waypointsToDisplay[i + 1];
+        const midLng = (wpA.lngLat[0] + wpB.lngLat[0]) / 2;
+        const midLat = (wpA.lngLat[1] + wpB.lngLat[1]) / 2;
+
+        const insertEl = document.createElement('div');
+        insertEl.style.cursor = 'pointer';
+        insertEl.innerHTML = `
+          <div style="
+            width: 22px;
+            height: 22px;
+            background: white;
+            border: 2px solid #22C55E;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            color: #22C55E;
+            line-height: 1;
+            transition: transform 0.15s ease, background 0.15s ease;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+          ">+</div>
+        `;
+
+        // Hover effects
+        const innerDiv = insertEl.firstElementChild as HTMLElement;
+        insertEl.addEventListener('mouseenter', () => {
+          innerDiv.style.transform = 'scale(1.2)';
+          innerDiv.style.background = '#dcfce7';
+        });
+        insertEl.addEventListener('mouseleave', () => {
+          innerDiv.style.transform = 'scale(1)';
+          innerDiv.style.background = 'white';
+        });
+
+        // Capture index for closure
+        const capturedIndex = i;
+        insertEl.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (onWaypointInsertedRef.current) {
+            onWaypointInsertedRef.current(capturedIndex, [midLng, midLat]);
+          }
+        });
+
+        const insertMarker = new mapboxgl.Marker({
+          element: insertEl,
+          anchor: 'center'
+        })
+          .setLngLat([midLng, midLat])
+          .addTo(map);
+
+        insertMarkers.push(insertMarker);
+      }
+    }
+    displayedRouteInsertMarkersRef.current = insertMarkers;
+
     // Fit map to route bounds with extra padding for the summary panel
     const bounds = new mapboxgl.LngLatBounds();
     pathCoordinates.forEach((coord: [number, number]) => {

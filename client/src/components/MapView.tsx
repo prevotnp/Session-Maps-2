@@ -507,10 +507,13 @@ const MapView: React.FC<MapViewProps> = ({
       } : undefined,
       isOwner ? (rw: any[]) => {
         handleViewWaypointDeleted(updatedRouteData as Route, rw);
+      } : undefined,
+      isOwner ? (afterIndex: number, insertLngLat: [number, number]) => {
+        handleWaypointInserted(updatedRouteData as Route, afterIndex, insertLngLat);
       } : undefined
     );
   };
-  
+
   // Calculate route path using Mapbox Directions API
   const calculateEditedRoutePath = async (
     waypoints: Array<{ lngLat: [number, number] }>,
@@ -619,6 +622,9 @@ const MapView: React.FC<MapViewProps> = ({
       } : undefined,
       isOwner ? (remainingWaypoints: any[]) => {
         handleViewWaypointDeleted(updatedRouteData as Route, remainingWaypoints);
+      } : undefined,
+      isOwner ? (afterIndex: number, insertLngLat: [number, number]) => {
+        handleWaypointInserted(updatedRouteData as Route, afterIndex, insertLngLat);
       } : undefined
     );
   };
@@ -694,6 +700,96 @@ const MapView: React.FC<MapViewProps> = ({
       } : undefined,
       isOwner ? (remainingWaypoints: any[]) => {
         handleViewWaypointDeleted(updatedRouteData as Route, remainingWaypoints);
+      } : undefined,
+      isOwner ? (afterIndex: number, insertLngLat: [number, number]) => {
+        handleWaypointInserted(updatedRouteData as Route, afterIndex, insertLngLat);
+      } : undefined
+    );
+  };
+
+  // Handle inserting a waypoint between two existing waypoints (from "+" map marker)
+  const handleWaypointInserted = async (route: Route, insertAfterIndex: number, lngLat: [number, number]) => {
+    const existingWaypoints = route.waypointCoordinates
+      ? JSON.parse(route.waypointCoordinates)
+      : [];
+
+    const newWaypoint = {
+      name: `Waypoint ${existingWaypoints.length + 1}`,
+      lngLat,
+      elevation: null
+    };
+
+    // Insert after the specified index
+    const updatedWaypoints = [...existingWaypoints];
+    updatedWaypoints.splice(insertAfterIndex + 1, 0, newWaypoint);
+
+    // Renumber generic "Waypoint N" names to maintain order
+    updatedWaypoints.forEach((wp: any, idx: number) => {
+      if (/^Waypoint \d+$/.test(wp.name)) {
+        wp.name = `Waypoint ${idx + 1}`;
+      }
+    });
+
+    const routingMode = (route.routingMode as string) || 'direct';
+
+    let pathCoords: [number, number][];
+    if (routingMode === 'direct' || routingMode === 'draw' || routingMode === 'recorded') {
+      pathCoords = updatedWaypoints.map((wp: any) => wp.lngLat);
+    } else {
+      pathCoords = await calculateEditedRoutePath(
+        updatedWaypoints.map((wp: any) => ({ lngLat: wp.lngLat })),
+        routingMode
+      );
+    }
+
+    const calculatePathDistance = (coords: [number, number][]) => {
+      if (coords.length < 2) return 0;
+      let total = 0;
+      for (let i = 1; i < coords.length; i++) {
+        const [lng1, lat1] = coords[i - 1];
+        const [lng2, lat2] = coords[i];
+        const R = 6371000;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        total += R * c;
+      }
+      return total;
+    };
+
+    const totalDistance = calculatePathDistance(pathCoords);
+
+    autoSaveRouteMutation.mutate({
+      routeId: route.id,
+      routeData: {
+        pathCoordinates: JSON.stringify(pathCoords),
+        waypointCoordinates: JSON.stringify(updatedWaypoints),
+        totalDistance,
+        routingMode
+      }
+    });
+
+    const updatedRouteData = {
+      ...route,
+      pathCoordinates: JSON.stringify(pathCoords),
+      waypointCoordinates: JSON.stringify(updatedWaypoints),
+      totalDistance: String(totalDistance)
+    };
+    const isOwner = (user as any)?.id === route.userId;
+    displayRoute(
+      updatedRouteData,
+      isOwner,
+      isOwner ? (waypointIndex: number, newLngLat: [number, number], allWaypoints: any[]) => {
+        handleViewWaypointDragged(updatedRouteData as Route, waypointIndex, newLngLat, allWaypoints);
+      } : undefined,
+      isOwner ? (rw: any[]) => {
+        handleViewWaypointDeleted(updatedRouteData as Route, rw);
+      } : undefined,
+      isOwner ? (afterIndex: number, insertLngLat: [number, number]) => {
+        handleWaypointInserted(updatedRouteData as Route, afterIndex, insertLngLat);
       } : undefined
     );
   };
@@ -716,9 +812,12 @@ const MapView: React.FC<MapViewProps> = ({
         } : undefined,
         isOwner ? (remainingWaypoints) => {
           handleViewWaypointDeleted(selectedRoute, remainingWaypoints);
+        } : undefined,
+        isOwner ? (afterIndex: number, insertLngLat: [number, number]) => {
+          handleWaypointInserted(selectedRoute, afterIndex, insertLngLat);
         } : undefined
       );
-      
+
       if (onRouteDisplayed) {
         onRouteDisplayed();
       }
@@ -1664,6 +1763,9 @@ const MapView: React.FC<MapViewProps> = ({
               } : undefined,
               stillOwner ? (remainingWaypoints: any[]) => {
                 handleViewWaypointDeleted(updatedRoute, remainingWaypoints);
+              } : undefined,
+              stillOwner ? (afterIndex: number, insertLngLat: [number, number]) => {
+                handleWaypointInserted(updatedRoute, afterIndex, insertLngLat);
               } : undefined
             );
           }}
@@ -1850,6 +1952,9 @@ const MapView: React.FC<MapViewProps> = ({
             },
             (remainingWaypoints) => {
               handleViewWaypointDeleted(route, remainingWaypoints);
+            },
+            (afterIndex: number, insertLngLat: [number, number]) => {
+              handleWaypointInserted(route, afterIndex, insertLngLat);
             }
           );
           // Auto-enable click-to-add waypoint mode for new routes
