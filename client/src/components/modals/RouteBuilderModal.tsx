@@ -27,10 +27,11 @@ interface RouteBuilderModalProps {
   onStartWaypointPlacement?: (routeName: string, routeDescription: string) => void;
   editingRoute?: Route;
   displayEditableRouteWaypoints?: (
-    pathCoordinates: [number, number][], 
+    pathCoordinates: [number, number][],
     onWaypointsUpdate?: (waypoints: Array<{id: string; lngLat: [number, number]}>) => void,
     onWaypointDelete?: (index: number) => void,
-    onWaypointEdit?: (index: number, newName: string) => void
+    onWaypointEdit?: (index: number, newName: string) => void,
+    onWaypointInsert?: (afterIndex: number, lngLat: [number, number]) => void
   ) => void;
   getEditableWaypointPositions?: () => [number, number][];
   clearEditableRouteWaypoints?: () => void;
@@ -388,10 +389,40 @@ export default function RouteBuilderModal({
         (indexToEdit, newName) => {
           setRouteState(prev => ({
             ...prev,
-            waypointCoordinates: prev.waypointCoordinates.map((wp, idx) => 
+            waypointCoordinates: prev.waypointCoordinates.map((wp, idx) =>
               idx === indexToEdit ? { ...wp, name: newName } : wp
             )
           }));
+        },
+        // Callback for inserting a new waypoint between two existing ones
+        (afterIndex, lngLat) => {
+          const currentPositions = getEditableWaypointPositions ? getEditableWaypointPositions() : null;
+
+          setRouteState(prev => {
+            const updatedCoords = currentPositions && currentPositions.length === prev.waypointCoordinates.length
+              ? prev.waypointCoordinates.map((wp, idx) => ({ ...wp, lngLat: currentPositions[idx] }))
+              : [...prev.waypointCoordinates];
+
+            const newWaypoint = {
+              name: `Waypoint ${updatedCoords.length + 1}`,
+              lngLat: lngLat as [number, number],
+              elevation: null
+            };
+
+            const newWaypoints = [
+              ...updatedCoords.slice(0, afterIndex + 1),
+              newWaypoint,
+              ...updatedCoords.slice(afterIndex + 1)
+            ];
+
+            return {
+              ...prev,
+              waypointCoordinates: newWaypoints,
+              pathCoordinates: newWaypoints.map(w => w.lngLat)
+            };
+          });
+          setWaypointsModified(true);
+          editMarkersDisplayedRef.current = false;
         }
       );
     }
@@ -443,6 +474,35 @@ export default function RouteBuilderModal({
             idx === indexToEdit ? { ...wp, name: newName } : wp
           )
         }));
+      },
+      (afterIndex, lngLat) => {
+        const currentPositions = getEditableWaypointPositions ? getEditableWaypointPositions() : null;
+
+        setRouteState(prev => {
+          const updatedCoords = currentPositions && currentPositions.length === prev.waypointCoordinates.length
+            ? prev.waypointCoordinates.map((wp, idx) => ({ ...wp, lngLat: currentPositions[idx] }))
+            : [...prev.waypointCoordinates];
+
+          const newWaypoint = {
+            name: `Waypoint ${updatedCoords.length + 1}`,
+            lngLat: lngLat as [number, number],
+            elevation: null
+          };
+
+          const newWaypoints = [
+            ...updatedCoords.slice(0, afterIndex + 1),
+            newWaypoint,
+            ...updatedCoords.slice(afterIndex + 1)
+          ];
+
+          return {
+            ...prev,
+            waypointCoordinates: newWaypoints,
+            pathCoordinates: newWaypoints.map(w => w.lngLat)
+          };
+        });
+        setWaypointsModified(true);
+        aiMarkersDisplayedRef.current = false;
       }
     );
 

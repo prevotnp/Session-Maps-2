@@ -657,6 +657,7 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
   
   // Ref to track editable waypoint markers directly (avoids React state timing issues)
   const editableWaypointMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const midpointMarkersRef = useRef<mapboxgl.Marker[]>([]);
   
   // Function to get current waypoint positions directly from markers (no stale closures)
   const getEditableWaypointPositions = (): [number, number][] => {
@@ -670,23 +671,28 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
   const clearEditableRouteWaypoints = () => {
     editableWaypointMarkersRef.current.forEach(marker => marker.remove());
     editableWaypointMarkersRef.current = [];
+    midpointMarkersRef.current.forEach(marker => marker.remove());
+    midpointMarkersRef.current = [];
     setRouteWaypoints([]);
   };
   
   // Function to display editable waypoints for a route
   const displayEditableRouteWaypoints = (
-    pathCoordinates: [number, number][], 
+    pathCoordinates: [number, number][],
     onWaypointsUpdate?: (waypoints: Array<{id: string; lngLat: [number, number]}>) => void,
     onWaypointDelete?: (index: number) => void,
-    onWaypointEdit?: (index: number, newName: string) => void
+    onWaypointEdit?: (index: number, newName: string) => void,
+    onWaypointInsert?: (afterIndex: number, lngLat: [number, number]) => void
   ) => {
     if (!mapRef.current || pathCoordinates.length === 0) return;
-    
+
     const map = mapRef.current;
-    
+
     // Clear existing editable waypoint markers using ref (not state)
     editableWaypointMarkersRef.current.forEach(marker => marker.remove());
     editableWaypointMarkersRef.current = [];
+    midpointMarkersRef.current.forEach(marker => marker.remove());
+    midpointMarkersRef.current = [];
     
     // Also clear route waypoints state
     setRouteWaypoints([]);
@@ -704,7 +710,8 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
     // Store callbacks globally for popup buttons
     (window as any).__editWaypointCallbacks = {
       onDelete: onWaypointDelete,
-      onEdit: onWaypointEdit
+      onEdit: onWaypointEdit,
+      onInsert: onWaypointInsert
     };
     
     // Create draggable markers for each waypoint
@@ -792,6 +799,49 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
     
     // Update the route line to connect all waypoints
     updateRouteLine(newWaypoints);
+
+    // Create midpoint "+" markers between consecutive waypoints
+    if (onWaypointInsert && newWaypoints.length >= 2) {
+      for (let i = 0; i < newWaypoints.length - 1; i++) {
+        const a = newWaypoints[i].lngLat;
+        const b = newWaypoints[i + 1].lngLat;
+        const midLng = (a[0] + b[0]) / 2;
+        const midLat = (a[1] + b[1]) / 2;
+
+        const el = document.createElement('div');
+        el.style.cssText = `
+          width: 22px;
+          height: 22px;
+          background: white;
+          border: 2px solid #4F46E5;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+          transition: transform 0.15s ease, background 0.15s ease;
+        `;
+        el.innerHTML = `<span style="color:#4F46E5;font-size:16px;font-weight:bold;line-height:1;margin-top:-1px;">+</span>`;
+        el.addEventListener('mouseenter', () => { el.style.transform = 'scale(1.25)'; el.style.background = '#EEF2FF'; });
+        el.addEventListener('mouseleave', () => { el.style.transform = 'scale(1)'; el.style.background = 'white'; });
+
+        const insertIdx = i;
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const cb = (window as any).__editWaypointCallbacks;
+          if (cb && cb.onInsert) {
+            cb.onInsert(insertIdx, [midLng, midLat] as [number, number]);
+          }
+        });
+
+        const midMarker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([midLng, midLat])
+          .addTo(map);
+
+        midpointMarkersRef.current.push(midMarker);
+      }
+    }
   };
   
   // Edit mode markers storage
