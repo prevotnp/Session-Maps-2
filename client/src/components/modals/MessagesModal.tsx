@@ -54,6 +54,52 @@ export function MessagesModal({ isOpen, onClose, onViewProfile, initialUserId }:
   const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Track visual viewport for iOS keyboard handling
+  const [vpHeight, setVpHeight] = useState<number | null>(null);
+  const [vpOffsetTop, setVpOffsetTop] = useState(0);
+  const keyboardOpen = vpHeight !== null;
+
+  useEffect(() => {
+    if (!isOpen) {
+      setVpHeight(null);
+      setVpOffsetTop(0);
+      return;
+    }
+
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const onResize = () => {
+      const threshold = 100; // keyboard detection threshold in px
+      const isKB = window.innerHeight - vv.height > threshold;
+      if (isKB) {
+        setVpHeight(vv.height);
+        setVpOffsetTop(vv.offsetTop);
+      } else {
+        setVpHeight(null);
+        setVpOffsetTop(0);
+      }
+    };
+
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+    onResize();
+
+    return () => {
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onResize);
+    };
+  }, [isOpen]);
+
+  // Scroll to bottom when keyboard opens so latest messages stay visible
+  useEffect(() => {
+    if (keyboardOpen && view === 'conversation') {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [keyboardOpen, view]);
+
   useEffect(() => {
     if (isOpen) {
       if (initialUserId) {
@@ -198,7 +244,16 @@ export function MessagesModal({ isOpen, onClose, onViewProfile, initialUserId }:
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg h-[80vh] max-h-[600px] flex flex-col p-0 bg-gray-900 border-gray-700 gap-0">
+      <DialogContent
+        className={`max-w-lg flex flex-col p-0 bg-gray-900 border-gray-700 gap-0 ${
+          !keyboardOpen ? 'h-[80vh] max-h-[600px]' : ''
+        }`}
+        style={keyboardOpen && view === 'conversation' ? {
+          height: `${vpHeight! - 16}px`,
+          maxHeight: `${vpHeight! - 16}px`,
+          top: `${vpOffsetTop + vpHeight! / 2}px`,
+        } : undefined}
+      >
 
         {view === "list" && (
           <>
