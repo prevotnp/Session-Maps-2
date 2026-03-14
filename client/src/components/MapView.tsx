@@ -441,7 +441,7 @@ const MapView: React.FC<MapViewProps> = ({
     }, 1000);
   };
 
-  // Handle waypoint deletion for auto-save
+  // Handle waypoint deletion for auto-save (from map popup Delete button)
   const handleViewWaypointDeleted = async (route: Route, remainingWaypoints: any[]) => {
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
@@ -465,28 +465,18 @@ const MapView: React.FC<MapViewProps> = ({
       return total;
     };
 
-    const routingMode = (route.routingMode as 'direct' | 'road' | 'trail') || 'direct';
+    const routingMode = (route.routingMode as string) || 'direct';
     let pathCoords: [number, number][];
 
-    if (routingMode === 'direct') {
-      pathCoords = remainingWaypoints.map(wp => wp.lngLat);
+    if (remainingWaypoints.length < 2) {
+      pathCoords = remainingWaypoints.map((wp: any) => wp.lngLat);
+    } else if (routingMode === 'direct' || routingMode === 'draw' || routingMode === 'recorded') {
+      pathCoords = remainingWaypoints.map((wp: any) => wp.lngLat);
     } else {
-      const coordinatesStr = remainingWaypoints.map((wp: any) => wp.lngLat.join(',')).join(';');
-      const profile = routingMode === 'road' ? 'driving' : 'walking';
-      const directionsUrl = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinatesStr}?geometries=geojson&overview=full&access_token=${import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}`;
-
-      try {
-        const response = await fetch(directionsUrl);
-        const data = await response.json();
-        if (data.routes && data.routes.length > 0) {
-          pathCoords = data.routes[0].geometry.coordinates as [number, number][];
-          updateDisplayedRouteLine(pathCoords);
-        } else {
-          pathCoords = remainingWaypoints.map(wp => wp.lngLat);
-        }
-      } catch {
-        pathCoords = remainingWaypoints.map(wp => wp.lngLat);
-      }
+      pathCoords = await calculateEditedRoutePath(
+        remainingWaypoints.map((wp: any) => ({ lngLat: wp.lngLat })),
+        routingMode
+      );
     }
 
     const totalDistance = calculatePathDistance(pathCoords);
@@ -500,6 +490,25 @@ const MapView: React.FC<MapViewProps> = ({
         routingMode
       }
     });
+
+    // Re-display the route with updated waypoints so map and panel stay in sync
+    const updatedRouteData = {
+      ...route,
+      pathCoordinates: JSON.stringify(pathCoords),
+      waypointCoordinates: JSON.stringify(remainingWaypoints),
+      totalDistance: String(totalDistance)
+    };
+    const isOwner = (user as any)?.id === route.userId;
+    displayRoute(
+      updatedRouteData,
+      isOwner,
+      isOwner ? (waypointIndex: number, newLngLat: [number, number], allWaypoints: any[]) => {
+        handleViewWaypointDragged(updatedRouteData as Route, waypointIndex, newLngLat, allWaypoints);
+      } : undefined,
+      isOwner ? (rw: any[]) => {
+        handleViewWaypointDeleted(updatedRouteData as Route, rw);
+      } : undefined
+    );
   };
   
   // Calculate route path using Mapbox Directions API
