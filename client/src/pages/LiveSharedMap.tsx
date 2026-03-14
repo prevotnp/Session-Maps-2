@@ -39,7 +39,7 @@ import {
 import { PiBirdFill } from "react-icons/pi";
 import { cn } from "@/lib/utils";
 import mapboxgl from "mapbox-gl";
-import { addUserLocationToMap, getElevation } from "@/lib/mapUtils";
+import { addUserLocationToMap, getElevation, findFirstSymbolOrCircleLayerId } from "@/lib/mapUtils";
 import { isNative } from "@/lib/capacitor";
 import { startBackgroundTracking, stopBackgroundTracking } from "@/lib/backgroundLocation";
 import { startKeepAlive, stopKeepAlive } from "@/lib/silentAudioKeepAlive";
@@ -614,7 +614,7 @@ export default function LiveSharedMap() {
           'type': 'raster',
           'source': sourceId,
           'paint': { 'raster-opacity': 0.85 }
-        });
+        }, findFirstSymbolOrCircleLayerId(m));
       }
       
       // Fly to the drone imagery location

@@ -189,6 +189,19 @@ export function calculateDroneImageryBounds(droneImage: DroneImage): LngLatBound
   );
 }
 
+// Find the first symbol or circle layer in the map style.
+// Used to insert raster layers (like drone imagery) below all text labels,
+// POI markers, and the GPS location dot.
+export function findFirstSymbolOrCircleLayerId(map: mapboxgl.Map): string | undefined {
+  const layers = map.getStyle().layers || [];
+  for (const layer of layers) {
+    if (layer.type === 'symbol' || layer.type === 'circle') {
+      return layer.id;
+    }
+  }
+  return undefined;
+}
+
 // Add drone imagery to map as a raster image layer
 export function addDroneImageryToMap(
   map: mapboxgl.Map, 
@@ -275,7 +288,10 @@ export function addDroneImageryToMap(
     url: imageUrl,
     coordinates: imageCoordinates as [[number, number], [number, number], [number, number], [number, number]]
   });
-  
+
+  // Insert drone imagery below all symbol/circle layers (labels, POIs, GPS dot)
+  const beforeId = findFirstSymbolOrCircleLayerId(map);
+
   // Add raster layer to display the drone imagery
   map.addLayer({
     id: layerId,
@@ -285,8 +301,8 @@ export function addDroneImageryToMap(
       'raster-opacity': 1,
       'raster-fade-duration': 0
     }
-  });
-  
+  }, beforeId);
+
   // Add outline source and layer
   const outlineGeojson = {
     type: 'Feature',
@@ -305,7 +321,7 @@ export function addDroneImageryToMap(
     data: outlineGeojson as any
   });
   
-  // Add outline layer
+  // Add outline layer (also below labels)
   map.addLayer({
     id: outlineLayerId,
     type: 'line',
@@ -316,7 +332,7 @@ export function addDroneImageryToMap(
       'line-width': 2,
       'line-dasharray': [2, 1]
     }
-  });
+  }, beforeId);
 
   // Fly to the drone imagery area
   const bounds = calculateDroneImageryBounds(droneImage);

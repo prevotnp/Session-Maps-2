@@ -4,7 +4,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { DroneImage, MapDrawing } from '@shared/schema';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { escapeHtml } from '@/lib/escapeHtml';
-import { addUserLocationToMap, UserLocation, DEFAULT_MAP_SETTINGS, addTetonCountyImagery, removeTetonCountyImagery, addTetonCountyParcels, removeTetonCountyParcels, switchToTetonCountyView, MAP_STYLES, switchToEnhancedMapboxSatellite, switchToEsriImagery, addEsriWorldImagery, removeEsriWorldImagery, addTopoContourLines, removeTopoContourLines, addTrailOverlay, removeTrailOverlay, addBaseTrailLinesAndLabels, addTrailGroup, removeTrailGroup, TrailOverlayType, TrailGroupType, TRAIL_OVERLAY_CONFIG, TRAIL_GROUP_CONFIG, getElevation } from '@/lib/mapUtils';
+import { addUserLocationToMap, UserLocation, DEFAULT_MAP_SETTINGS, addTetonCountyImagery, removeTetonCountyImagery, addTetonCountyParcels, removeTetonCountyParcels, switchToTetonCountyView, MAP_STYLES, switchToEnhancedMapboxSatellite, switchToEsriImagery, addEsriWorldImagery, removeEsriWorldImagery, addTopoContourLines, removeTopoContourLines, addTrailOverlay, removeTrailOverlay, addBaseTrailLinesAndLabels, addTrailGroup, removeTrailGroup, TrailOverlayType, TrailGroupType, TRAIL_OVERLAY_CONFIG, TRAIL_GROUP_CONFIG, getElevation, findFirstSymbolOrCircleLayerId } from '@/lib/mapUtils';
 
 // Set mapbox access token
 const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -2260,11 +2260,14 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
     }
 
     const useTiles = (droneImage as any).hasTiles === true;
-    
+
+    // Insert drone imagery below all symbol/circle layers (labels, POIs, GPS dot)
+    const beforeId = findFirstSymbolOrCircleLayerId(map);
+
     if (useTiles) {
       const tileMinZoom = (droneImage as any).tileMinZoom || 8;
       const tileMaxZoom = (droneImage as any).tileMaxZoom || 24;
-      
+
       map.addSource(layerId, {
         'type': 'raster',
         'tiles': [`/api/drone-images/${droneImage.id}/tiles/{z}/{x}/{y}.png`],
@@ -2274,7 +2277,7 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         'maxzoom': tileMaxZoom,
         'scheme': 'xyz'
       } as any);
-      
+
       map.addLayer({
         'id': layerId,
         'type': 'raster',
@@ -2282,17 +2285,17 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         'paint': {
           'raster-opacity': 0.9
         }
-      });
+      }, beforeId);
 
     } else {
       const imageUrl = `/api/drone-images/${droneImage.id}/file?t=${Date.now()}`;
-      
+
       map.addSource(layerId, {
         'type': 'image',
         'url': imageUrl,
         'coordinates': imageCoordinates
       });
-      
+
       map.addLayer({
         'id': layerId,
         'type': 'raster',
@@ -2300,7 +2303,7 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         'paint': {
           'raster-opacity': 0.8
         }
-      });
+      }, beforeId);
 
     }
 
@@ -2348,8 +2351,8 @@ export const useMapbox = (mapContainerRef: RefObject<HTMLDivElement>) => {
         'line-width': 2,
         'line-dasharray': [3, 3]
       }
-    });
-    
+    }, beforeId);
+
     setActiveDroneImagery(droneImage);
     setActiveDroneImages(prev => new Map(prev).set(imageId, droneImage));
 
