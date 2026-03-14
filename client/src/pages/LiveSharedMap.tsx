@@ -1295,17 +1295,14 @@ export default function LiveSharedMap() {
               id: vm.id,
               userId: vm.userId,
               username: vm.username,
-              audio: vm.audio,
+              audioUrl: `/api/voice-messages/${vm.id}/audio`,
               mimeType: vm.mimeType,
               duration: vm.duration,
               timestamp: vm.timestamp,
               hasPlayed: false,
             };
             setVoiceMessages(prev => [...prev.slice(-49), newMsg]);
-            // Auto-play the voice message (radio is always "on")
-            playVoiceMessage(newMsg).then(() => {
-              newMsg.hasPlayed = true;
-            });
+            playVoiceMessage(newMsg);
             if (!showRadioRef.current) {
               setUnheardVoiceCount(prev => prev + 1);
             }
@@ -1829,7 +1826,7 @@ export default function LiveSharedMap() {
                 id: vm.id,
                 userId: vm.userId,
                 username: vm.username,
-                audio: vm.audio,
+                audioUrl: `/api/voice-messages/${vm.id}/audio`,
                 mimeType: vm.mimeType,
                 duration: vm.duration,
                 timestamp: vm.timestamp,

@@ -177,30 +177,39 @@ export default function RadioPanel({
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64 = (reader.result as string).split(',')[1];
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-              type: 'voice:message',
+
+          // Upload audio via REST (not WebSocket) to avoid proxy message size limits
+          fetch(`/api/live-maps/${sessionId}/voice-messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
               audio: base64,
               mimeType,
               duration,
               username: currentUsername,
-            }));
-
-            // Add to local message list
+            }),
+          }).then(res => {
+            if (res.ok) return res.json();
+            throw new Error('Upload failed');
+          }).then(({ id, timestamp }) => {
+            // Add to local message list with server-assigned ID
             onNewVoiceMessage({
-              id: `local-${Date.now()}`,
+              id,
               userId: currentUserId,
               username: currentUsername,
-              audio: base64,
+              audioUrl: `/api/voice-messages/${id}/audio`,
               mimeType,
               duration,
-              timestamp: Date.now(),
+              timestamp,
               hasPlayed: true,
             });
 
             setSentFlash(true);
             setTimeout(() => setSentFlash(false), 1500);
-          }
+          }).catch(err => {
+            console.error('Voice message upload failed:', err);
+          });
         };
         reader.readAsDataURL(blob);
         stream.getTracks().forEach(t => t.stop());

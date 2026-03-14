@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { storage as dbStorage } from "../storage";
 import { isAuthenticated } from "./middleware";
 import { parseId, type WebSocketState } from "./utils";
+import { WebSocket } from "ws";
 import crypto from "crypto";
 
 function generateShareCode(): string {
@@ -926,6 +927,126 @@ export function registerLiveMapRoutes(app: Express, wsState: WebSocketState) {
   });
 
   // ===== Voice Message Endpoints =====
+
+  // Upload a voice message (audio via REST, then broadcast metadata via WebSocket)
+  app.post("/api/live-maps/:id/voice-messages", isAuthenticated, async (req: Request, res: Response) => {
+    const sessionId = parseId(req.params.id);
+    if (!sessionId) {
+      return res.status(400).json({ message: "Invalid ID" });
+    }
+
+    try {
+      const userId = req.user!.id;
+      const isMember = await dbStorage.isLiveMapMember(sessionId, userId);
+      const session = await dbStorage.getLiveMapSession(sessionId);
+
+      if (!session || (!isMember && session.ownerId !== userId)) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      const { audio, mimeType, duration, username } = req.body;
+      if (!audio || !mimeType) {
+        return res.status(400).json({ error: "Missing audio or mimeType" });
+      }
+
+      const msgTimestamp = Date.now();
+
+      // 1. Store in database
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour TTL
+      const voiceMsg = await dbStorage.createVoiceMessage({
+        sessionId,
+        userId,
+        audioStoragePath: '',
+        mimeType: mimeType || 'audio/webm',
+        durationSeconds: Math.round(duration || 0),
+        expiresAt,
+      });
+
+      // 2. Store audio in object storage
+      try {
+        const { storeVoiceMessage } = await import('../voiceStorage');
+        const storagePath = await storeVoiceMessage(
+          sessionId, voiceMsg.id, audio, mimeType || 'audio/webm'
+        );
+        await dbStorage.updateVoiceMessagePath(voiceMsg.id, storagePath);
+      } catch (storageErr) {
+        console.error('Voice storage error:', storageErr);
+      }
+
+      // 3. Broadcast SMALL metadata-only notification via WebSocket (no audio data)
+      const { clients, sessionRooms } = wsState;
+      const room = sessionRooms.get(sessionId);
+      const onlineUserIds = room ? new Set(room) : new Set<number>();
+
+      if (room) {
+        const sender = await dbStorage.getUser(userId);
+        const senderName = username || sender?.fullName || sender?.username || 'Unknown';
+
+        const notificationStr = JSON.stringify({
+          type: 'voice:message',
+          sessionId,
+          data: {
+            id: voiceMsg.id,
+            userId,
+            username: senderName,
+            mimeType: mimeType || 'audio/webm',
+            duration: duration || 0,
+            timestamp: msgTimestamp,
+          }
+        });
+
+        room.forEach(memberId => {
+          if (memberId !== userId) {
+            const client = clients.get(memberId);
+            if (client && client.readyState === WebSocket.OPEN) {
+              client.send(notificationStr);
+            }
+          }
+        });
+      }
+
+      // 4. Send push notifications to OFFLINE session members
+      try {
+        const members = await dbStorage.getLiveMapMembers(sessionId);
+        const sender = await dbStorage.getUser(userId);
+        const senderName = sender?.fullName || sender?.username || 'Someone';
+        const sessionName = session?.name || 'Team Map';
+
+        const { sendPushNotification } = await import('../pushNotifications');
+
+        for (const member of members) {
+          if (member.userId === userId) continue;
+          if (onlineUserIds.has(member.userId)) continue;
+
+          const tokens = await dbStorage.getActiveDeviceTokensByUser(member.userId);
+          for (const token of tokens) {
+            if (token.platform === 'web') {
+              const sent = await sendPushNotification(token.token, {
+                title: `🔊 ${senderName}`,
+                body: `Sent a radio message on ${sessionName}`,
+                data: {
+                  type: 'voice_message',
+                  sessionId,
+                  voiceMessageId: voiceMsg.id,
+                  url: `/live-map/${sessionId}?openRadio=true`,
+                }
+              });
+              if (!sent) {
+                await dbStorage.deactivateDeviceToken(token.token);
+              }
+            }
+          }
+        }
+      } catch (pushErr) {
+        console.error('Push notification error:', pushErr);
+      }
+
+      res.json({ id: voiceMsg.id, timestamp: msgTimestamp });
+    } catch (error) {
+      console.error('Error uploading voice message:', error);
+      res.status(500).json({ error: "Failed to upload voice message" });
+    }
+  });
 
   // Get missed voice messages for a session (since a timestamp)
   app.get("/api/live-maps/:id/voice-messages", isAuthenticated, async (req: Request, res: Response) => {
