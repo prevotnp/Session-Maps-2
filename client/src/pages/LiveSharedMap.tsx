@@ -229,7 +229,9 @@ export default function LiveSharedMap() {
   const sharedRouteMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const routeHandlersRef = useRef<Array<{ layerId: string; clickHandler: any; enterHandler: any; leaveHandler: any }>>([]);
   const droneDropdownRef = useRef<HTMLDivElement>(null);
-  
+  const bgTokenRef = useRef<string | null>(null);
+  const bgIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Track path history for each member during the session
   const [memberPaths, setMemberPaths] = useState<Map<number, [number, number][]>>(new Map());
   
@@ -1293,8 +1295,9 @@ export default function LiveSharedMap() {
       }
       stopBackgroundTracking();
       stopKeepAlive();
+      stopPwaBackgroundPolling();
     };
-  }, [sessionId, user]);
+  }, [sessionId, user, stopPwaBackgroundPolling]);
   
   // Chat auto-scroll
   useEffect(() => {
@@ -1535,8 +1538,54 @@ export default function LiveSharedMap() {
   
   const isMobilePwa = !isNative && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
+  const stopPwaBackgroundPolling = useCallback(() => {
+    if (bgIntervalRef.current) {
+      clearInterval(bgIntervalRef.current);
+      bgIntervalRef.current = null;
+    }
+    bgTokenRef.current = null;
+  }, []);
+
+  const startPwaBackgroundPolling = useCallback(async () => {
+    if (!sessionId) return;
+
+    try {
+      const res = await apiRequest('POST', `/api/live-maps/${sessionId}/background-token`);
+      const { token } = await res.json();
+      bgTokenRef.current = token;
+
+      bgIntervalRef.current = setInterval(() => {
+        if (!bgTokenRef.current) return;
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude, accuracy, heading } = position.coords;
+
+            fetch(`/api/live-maps/${sessionId}/background-location`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${bgTokenRef.current}`,
+              },
+              body: JSON.stringify({ latitude, longitude, accuracy, heading }),
+            }).catch((err) => {
+              console.warn('[PWA Background] HTTP location post failed:', err);
+            });
+          },
+          (err) => {
+            console.warn('[PWA Background] getCurrentPosition failed:', err);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+        );
+      }, 5000);
+    } catch (err) {
+      console.error('[PWA Background] Failed to start background polling:', err);
+    }
+  }, [sessionId]);
+
   const handleLiveMapResume = useCallback(() => {
     stopKeepAlive();
+    stopPwaBackgroundPolling();
 
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.log('Live Map: Reconnecting WebSocket after background...');
@@ -1617,13 +1666,14 @@ export default function LiveSharedMap() {
     queryClient.invalidateQueries({ queryKey: ['/api/live-maps', sessionId] });
 
     console.log('Live Map: Fully resumed after background');
-  }, [user, sessionId, updateMemberMarker, queryClient]);
+  }, [user, sessionId, updateMemberMarker, queryClient, stopPwaBackgroundPolling]);
 
   const handleBackgroundEnter = useCallback(() => {
     if (isMobilePwa) {
       startKeepAlive();
+      startPwaBackgroundPolling();
     }
-  }, [isMobilePwa]);
+  }, [isMobilePwa, startPwaBackgroundPolling]);
 
   useBackgroundResilience({
     isActive: !!sessionId && !!user,
