@@ -85,12 +85,22 @@ export async function playVoiceMessage(msg: VoiceMessage): Promise<void> {
 
   return new Promise<void>((resolve) => {
     const audio = new Audio(audioUrl);
-    audio.play().catch(() => { /* auto-play blocked */ });
+    audio.play().then(() => {
+      msg.hasPlayed = true;
+    }).catch((err) => {
+      console.warn('Voice auto-play blocked:', err);
+      // Mark as played so it shows in the log for manual replay
+      msg.hasPlayed = false;
+      if (needsRevoke) URL.revokeObjectURL(audioUrl);
+      resolve();
+    });
     audio.onended = () => {
+      msg.hasPlayed = true;
       if (needsRevoke) URL.revokeObjectURL(audioUrl);
       resolve();
     };
     audio.onerror = () => {
+      console.warn('Voice playback error');
       if (needsRevoke) URL.revokeObjectURL(audioUrl);
       resolve();
     };

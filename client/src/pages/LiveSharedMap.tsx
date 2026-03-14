@@ -1823,6 +1823,42 @@ export default function LiveSharedMap() {
             case 'route:updated':
               queryClient.invalidateQueries({ queryKey: ['/api/live-maps', sessionId] });
               break;
+            case 'voice:message': {
+              const vm = data.data;
+              const newMsg: VoiceMessage = {
+                id: vm.id,
+                userId: vm.userId,
+                username: vm.username,
+                audio: vm.audio,
+                mimeType: vm.mimeType,
+                duration: vm.duration,
+                timestamp: vm.timestamp,
+                hasPlayed: false,
+              };
+              setVoiceMessages(prev => [...prev.slice(-49), newMsg]);
+              playVoiceMessage(newMsg);
+              if (!showRadioRef.current) {
+                setUnheardVoiceCount(prev => prev + 1);
+              }
+              break;
+            }
+            case 'voice:talking': {
+              const { userId: talkerId, isTalking } = data.data;
+              setTalkingUsers(prev => {
+                const next = new Set(prev);
+                if (isTalking) next.add(talkerId);
+                else next.delete(talkerId);
+                return next;
+              });
+              break;
+            }
+            case 'session:ended':
+              toast({
+                title: "Session ended",
+                description: "The session owner has ended this live team map"
+              });
+              setLocation("/");
+              break;
           }
         } catch (e) {
           console.error('WS message parse error:', e);

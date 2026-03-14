@@ -203,99 +203,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Push-to-talk voice message
         if (data.type === 'voice:message' && userId && currentSessionId) {
-          try {
-            const { audio, mimeType, duration, username } = data;
+          const { audio, mimeType, duration, username } = data;
+          const msgTimestamp = Date.now();
 
-            // 1. Store the voice message in database
-            const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-            const voiceMsg = await dbStorage.createVoiceMessage({
+          // 1. IMMEDIATELY broadcast to ONLINE session members (exclude sender)
+          //    This must happen first — before any async DB/storage work that could fail.
+          const room = sessionRooms.get(currentSessionId);
+          const onlineUserIds = room ? new Set(room) : new Set<number>();
+          const tempId = `temp-${userId}-${msgTimestamp}`;
+
+          if (room) {
+            const messageStr = JSON.stringify({
+              type: 'voice:message',
               sessionId: currentSessionId,
-              userId,
-              audioStoragePath: '', // Will update after storage
-              mimeType: mimeType || 'audio/webm',
-              durationSeconds: Math.round(duration || 0),
-              expiresAt,
+              data: {
+                id: tempId,
+                userId,
+                username: username || 'Unknown',
+                audio,
+                mimeType: mimeType || 'audio/webm',
+                duration: duration || 0,
+                timestamp: msgTimestamp,
+              }
             });
 
-            // Store audio in object storage
-            try {
-              const { storeVoiceMessage } = await import('./voiceStorage');
-              const storagePath = await storeVoiceMessage(
-                currentSessionId, voiceMsg.id, audio, mimeType || 'audio/webm'
-              );
-              await dbStorage.updateVoiceMessagePath(voiceMsg.id, storagePath);
-            } catch (storageErr) {
-              console.error('Voice storage error (continuing with broadcast):', storageErr);
-            }
-
-            // 2. Broadcast to ONLINE session members (exclude sender)
-            const room = sessionRooms.get(currentSessionId);
-            const onlineUserIds = room ? new Set(room) : new Set<number>();
-
-            if (room) {
-              const messageStr = JSON.stringify({
-                type: 'voice:message',
-                sessionId: currentSessionId,
-                data: {
-                  id: voiceMsg.id,
-                  userId,
-                  username: username || 'Unknown',
-                  audio,
-                  mimeType: mimeType || 'audio/webm',
-                  duration: duration || 0,
-                  timestamp: Date.now(),
+            room.forEach(memberId => {
+              if (memberId !== userId) {
+                const client = clients.get(memberId);
+                if (client && client.readyState === WebSocket.OPEN) {
+                  client.send(messageStr);
                 }
+              }
+            });
+          }
+
+          // 2. Store in database and object storage (async, doesn't block broadcast)
+          const capturedSessionId = currentSessionId;
+          (async () => {
+            try {
+              const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+              const voiceMsg = await dbStorage.createVoiceMessage({
+                sessionId: capturedSessionId,
+                userId,
+                audioStoragePath: '',
+                mimeType: mimeType || 'audio/webm',
+                durationSeconds: Math.round(duration || 0),
+                expiresAt,
               });
 
-              room.forEach(memberId => {
-                if (memberId !== userId) {
-                  const client = clients.get(memberId);
-                  if (client && client.readyState === WebSocket.OPEN) {
-                    client.send(messageStr);
-                  }
-                }
-              });
-            }
+              try {
+                const { storeVoiceMessage } = await import('./voiceStorage');
+                const storagePath = await storeVoiceMessage(
+                  capturedSessionId, voiceMsg.id, audio, mimeType || 'audio/webm'
+                );
+                await dbStorage.updateVoiceMessagePath(voiceMsg.id, storagePath);
+              } catch (storageErr) {
+                console.error('Voice storage error:', storageErr);
+              }
 
-            // 3. Send push notifications to OFFLINE session members
-            try {
-              const members = await dbStorage.getLiveMapMembers(currentSessionId);
-              const session = await dbStorage.getLiveMapSession(currentSessionId);
-              const sender = await dbStorage.getUser(userId);
-              const senderName = sender?.fullName || sender?.username || 'Someone';
-              const sessionName = session?.name || 'Team Map';
+              // 3. Send push notifications to OFFLINE session members
+              try {
+                const members = await dbStorage.getLiveMapMembers(capturedSessionId);
+                const session = await dbStorage.getLiveMapSession(capturedSessionId);
+                const sender = await dbStorage.getUser(userId);
+                const senderName = sender?.fullName || sender?.username || 'Someone';
+                const sessionName = session?.name || 'Team Map';
 
-              const { sendPushNotification } = await import('./pushNotifications');
+                const { sendPushNotification } = await import('./pushNotifications');
 
-              for (const member of members) {
-                if (member.userId === userId) continue;
-                if (onlineUserIds.has(member.userId)) continue;
+                for (const member of members) {
+                  if (member.userId === userId) continue;
+                  if (onlineUserIds.has(member.userId)) continue;
 
-                const tokens = await dbStorage.getActiveDeviceTokensByUser(member.userId);
-                for (const token of tokens) {
-                  if (token.platform === 'web') {
-                    const sent = await sendPushNotification(token.token, {
-                      title: `\uD83D\uDD0A ${senderName}`,
-                      body: `Sent a radio message on ${sessionName}`,
-                      data: {
-                        type: 'voice_message',
-                        sessionId: currentSessionId,
-                        voiceMessageId: voiceMsg.id,
-                        url: `/live-map/${currentSessionId}?openRadio=true`,
+                  const tokens = await dbStorage.getActiveDeviceTokensByUser(member.userId);
+                  for (const token of tokens) {
+                    if (token.platform === 'web') {
+                      const sent = await sendPushNotification(token.token, {
+                        title: `\uD83D\uDD0A ${senderName}`,
+                        body: `Sent a radio message on ${sessionName}`,
+                        data: {
+                          type: 'voice_message',
+                          sessionId: capturedSessionId,
+                          voiceMessageId: voiceMsg.id,
+                          url: `/live-map/${capturedSessionId}?openRadio=true`,
+                        }
+                      });
+                      if (!sent) {
+                        await dbStorage.deactivateDeviceToken(token.token);
                       }
-                    });
-                    if (!sent) {
-                      await dbStorage.deactivateDeviceToken(token.token);
                     }
                   }
                 }
+              } catch (pushErr) {
+                console.error('Push notification error:', pushErr);
               }
-            } catch (pushErr) {
-              console.error('Push notification error:', pushErr);
+            } catch (err) {
+              console.error('Voice message storage error:', err);
             }
-          } catch (err) {
-            console.error('Voice message error:', err);
-          }
+          })();
         }
 
         // Voice talking indicator
