@@ -376,43 +376,43 @@ export default function Explore() {
         <div ref={mapContainerRef} className="absolute inset-0" />
 
         {routesLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
             <div className="text-white flex items-center gap-2">
               <Loader2 className="w-6 h-6 animate-spin" />
               Loading routes...
             </div>
           </div>
         )}
-
-        {/* Right-side map controls (zoom, compass, GPS) */}
-        <MapControls
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          onMyLocation={flyToUserLocation}
-          onResetNorth={resetNorth}
-          onToggleTerrain={toggleTerrain}
-        />
-
-        {/* Bottom toolbar — Explore section only (2D/3D, Layers, Drone, Measure) */}
-        <UnifiedToolbar
-          onToggleLayer={toggleLayer}
-          activeLayers={activeLayers}
-          activeTrailOverlays={activeTrailOverlays}
-          onStartOfflineSelection={startOfflineAreaSelection}
-          onToggleDroneLayer={handleToggleDroneLayer}
-          activeDroneLayers={activeDroneLayers}
-          onOpenRouteBuilder={() => {}}
-          isMeasurementMode={isMeasurementMode}
-          onToggleMeasurement={() => setIsMeasurementMode(!isMeasurementMode)}
-          isOfflineSelectionMode={isOfflineSelectionMode}
-          isRecordingActive={true}
-          showOutdoorPOIs={showOutdoorPOIs}
-          isOutdoorPOIsLoading={isOutdoorPOIsLoading}
-          onToggleOutdoorPOIs={() => setShowOutdoorPOIs(!showOutdoorPOIs)}
-          esriImageryEnabled={esriImageryEnabled}
-          onToggleEsriImagery={toggleEsriImagery}
-        />
       </div>
+
+      {/* Right-side map controls (zoom, compass, GPS) — outside map container like MapView */}
+      <MapControls
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+        onMyLocation={flyToUserLocation}
+        onResetNorth={resetNorth}
+        onToggleTerrain={toggleTerrain}
+      />
+
+      {/* Bottom toolbar — Explore section only (2D/3D, Layers, Drone, Measure) */}
+      <UnifiedToolbar
+        onToggleLayer={toggleLayer}
+        activeLayers={activeLayers}
+        activeTrailOverlays={activeTrailOverlays}
+        onStartOfflineSelection={startOfflineAreaSelection}
+        onToggleDroneLayer={handleToggleDroneLayer}
+        activeDroneLayers={activeDroneLayers}
+        onOpenRouteBuilder={() => {}}
+        isMeasurementMode={isMeasurementMode}
+        onToggleMeasurement={() => setIsMeasurementMode(!isMeasurementMode)}
+        isOfflineSelectionMode={isOfflineSelectionMode}
+        isRecordingActive={true}
+        showOutdoorPOIs={showOutdoorPOIs}
+        isOutdoorPOIsLoading={isOutdoorPOIsLoading}
+        onToggleOutdoorPOIs={() => setShowOutdoorPOIs(!showOutdoorPOIs)}
+        esriImageryEnabled={esriImageryEnabled}
+        onToggleEsriImagery={toggleEsriImagery}
+      />
 
       {/* Route info bottom sheet */}
       {showRouteInfo && selectedRoute && (
