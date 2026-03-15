@@ -129,7 +129,7 @@ export default function BeaconFinder({
     };
   }, [isOpen, compassPermission, hasCompass]);
 
-  // 2-second refresh for bearing and distance
+  // 1-second refresh for bearing and distance
   useEffect(() => {
     if (!isOpen) return;
 
@@ -150,7 +150,7 @@ export default function BeaconFinder({
     };
 
     update(); // immediate first update
-    const interval = setInterval(update, 2000);
+    const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
   }, [isOpen, getTargetLocation, userLocationRef]);
 
@@ -260,7 +260,9 @@ export default function BeaconFinder({
 
             {/* Distance */}
             <p className="text-white text-5xl font-bold tracking-tight">
-              {distanceFeet >= 1000 ? distanceFeet.toLocaleString() : distanceFeet} ft
+              {distanceFeet <= 10
+                ? 'Within 10ft of this area'
+                : `${distanceFeet >= 1000 ? distanceFeet.toLocaleString() : distanceFeet} ft`}
             </p>
 
             {/* Accuracy */}
