@@ -174,13 +174,14 @@ export async function registerRoutingRoutes(app: Express) {
         return res.status(403).json({ message: "Only route owner can update" });
       }
 
-      const { isPublic, name, description, notes } = req.body;
+      const { isPublic, name, description, notes, activityType } = req.body;
 
       const updateData: any = {};
       if (isPublic !== undefined) updateData.isPublic = isPublic;
       if (name !== undefined) updateData.name = name;
       if (description !== undefined) updateData.description = description;
       if (notes !== undefined) updateData.notes = notes;
+      if (activityType !== undefined) updateData.activityType = activityType;
 
       const updatedRoute = await dbStorage.updateRoute(routeId, updateData);
       return res.status(200).json(updatedRoute);

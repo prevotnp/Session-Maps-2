@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Route as RouteIcon, Map, Clock, Ruler, Mountain, X, UserPlus, Trash2, Share2, Box, Search, Check, Calendar } from 'lucide-react';
+import { Route as RouteIcon, Map, Clock, Ruler, Mountain, X, UserPlus, Trash2, Share2, Box, Search, Check, Calendar, ChevronDown, Activity } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Route } from '@shared/schema';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -30,6 +30,20 @@ interface ShareInfo {
   sharedAt: string;
 }
 
+const ACTIVITY_TYPE_OPTIONS = [
+  { value: 'skiing', label: 'Ski', icon: '⛷️', color: '#3B82F6' },
+  { value: 'hiking', label: 'Hike/Run', icon: '🥾', color: '#EAB308' },
+  { value: 'river', label: 'River Trip', icon: '🛶', color: '#EF4444' },
+  { value: 'cycling', label: 'Cycling', icon: '🚴', color: '#EC4899' },
+];
+
+const getActivityLabel = (activityType: string | null | undefined) => {
+  if (!activityType) return ACTIVITY_TYPE_OPTIONS[1]; // default to Hike/Run
+  // Map 'running' to 'hiking' option (Hike/Run)
+  const mappedType = activityType === 'running' ? 'hiking' : activityType;
+  return ACTIVITY_TYPE_OPTIONS.find(a => a.value === mappedType) || ACTIVITY_TYPE_OPTIONS[1];
+};
+
 const RoutesModal: React.FC<RoutesModalProps> = ({ isOpen, onClose, onSelectRoute, onDisplayAllRoutes }) => {
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -38,6 +52,7 @@ const RoutesModal: React.FC<RoutesModalProps> = ({ isOpen, onClose, onSelectRout
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'my-maps' | 'shared'>('my-maps');
+  const [activityDropdownRouteId, setActivityDropdownRouteId] = useState<number | null>(null);
 
   // Fetch saved routes
   const { data: routes = [], isLoading } = useQuery<RouteWithSharing[]>({
@@ -132,6 +147,22 @@ const RoutesModal: React.FC<RoutesModalProps> = ({ isOpen, onClose, onSelectRout
     },
     onError: () => {
       toast({ title: 'Failed to update route visibility', variant: 'destructive' });
+    }
+  });
+
+  // Update activity type mutation
+  const updateActivityMutation = useMutation({
+    mutationFn: async ({ routeId, activityType }: { routeId: number; activityType: string }) => {
+      return apiRequest('PATCH', `/api/routes/${routeId}`, { activityType });
+    },
+    onSuccess: () => {
+      toast({ title: 'Activity type updated' });
+      queryClient.invalidateQueries({ queryKey: ['/api/routes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/routes/public'] });
+      setActivityDropdownRouteId(null);
+    },
+    onError: () => {
+      toast({ title: 'Failed to update activity type', variant: 'destructive' });
     }
   });
 
@@ -337,26 +368,81 @@ const RoutesModal: React.FC<RoutesModalProps> = ({ isOpen, onClose, onSelectRout
           </div>
         </div>
         
+        {/* Activity type selector */}
+        <div className="flex items-center gap-2 text-sm mb-2">
+          <Activity className="h-4 w-4 text-muted-foreground" />
+          <span className="text-muted-foreground">Activity:</span>
+          {!isSharedRoute ? (
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActivityDropdownRouteId(activityDropdownRouteId === route.id ? null : route.id);
+                }}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-accent/50 hover:bg-accent transition-colors"
+              >
+                <div
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: getActivityLabel(route.activityType).color }}
+                />
+                <span className="font-medium">{getActivityLabel(route.activityType).icon} {getActivityLabel(route.activityType).label}</span>
+                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              </button>
+              {activityDropdownRouteId === route.id && (
+                <div className="absolute left-0 top-full mt-1 w-44 bg-background border rounded-lg shadow-lg z-50 overflow-hidden">
+                  {ACTIVITY_TYPE_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateActivityMutation.mutate({ routeId: route.id, activityType: option.value });
+                      }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors ${
+                        getActivityLabel(route.activityType).value === option.value ? 'bg-accent/50 font-medium' : ''
+                      }`}
+                    >
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: option.color }} />
+                      <span>{option.icon}</span>
+                      <span>{option.label}</span>
+                      {getActivityLabel(route.activityType).value === option.value && (
+                        <Check className="h-3.5 w-3.5 ml-auto text-primary" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <div
+                className="w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: getActivityLabel(route.activityType).color }}
+              />
+              <span className="font-medium">{getActivityLabel(route.activityType).icon} {getActivityLabel(route.activityType).label}</span>
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="flex items-center gap-2">
             <Map className="h-4 w-4 text-muted-foreground" />
             <span>{waypointCount} waypoints</span>
           </div>
-          
+
           {route.totalDistance && (
             <div className="flex items-center gap-2">
               <Ruler className="h-4 w-4 text-muted-foreground" />
               <span>{formatDistance(route.totalDistance)}</span>
             </div>
           )}
-          
+
           {route.estimatedTime && (
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
               <span>{formatTime(route.estimatedTime)}</span>
             </div>
           )}
-          
+
           {route.elevationGain && parseFloat(route.elevationGain) > 0 && (
             <div className="flex items-center gap-2">
               <Mountain className="h-4 w-4 text-muted-foreground" />
@@ -422,6 +508,7 @@ const RoutesModal: React.FC<RoutesModalProps> = ({ isOpen, onClose, onSelectRout
       <Dialog open={isOpen} onOpenChange={(open) => {
         if (!open) {
           setSearchQuery('');
+          setActivityDropdownRouteId(null);
           onClose();
         }
       }}>
