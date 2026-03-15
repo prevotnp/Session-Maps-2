@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -6,11 +6,11 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  ArrowLeft, 
-  X, 
-  UserPlus, 
-  MapPin, 
+import {
+  ArrowLeft,
+  X,
+  UserPlus,
+  MapPin,
   Route as RouteIcon,
   Clock,
   TrendingUp,
@@ -19,10 +19,12 @@ import {
   Check,
   Loader2
 } from "lucide-react";
+import { useMapbox } from "@/hooks/useMapbox";
+import { useOutdoorPOIs } from "@/hooks/useOutdoorPOIs";
+import MapControls from "@/components/MapControls";
+import UnifiedToolbar from "@/components/UnifiedToolbar";
+import { DroneImage } from "@shared/schema";
 import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
-
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
 const ROUTE_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
@@ -71,15 +73,71 @@ export default function Explore() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const [selectedRoute, setSelectedRoute] = useState<PublicRoute | null>(null);
   const [selectedUserProfile, setSelectedUserProfile] = useState<UserProfile | null>(null);
   const [showRouteInfo, setShowRouteInfo] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
-  
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const mapInitialized = useRef(false);
+  const [activeDroneLayers, setActiveDroneLayers] = useState<Set<number>>(new Set());
+
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+
+  // Use the same map infrastructure as the base map
+  const {
+    initializeMap,
+    isMapReady,
+    map,
+    toggleLayer,
+    activeLayers,
+    activeTrailOverlays,
+    zoomIn,
+    zoomOut,
+    flyToUserLocation,
+    toggleTerrain,
+    resetNorth,
+    addDroneImagery,
+    removeDroneImageryById,
+    activeDroneImages,
+    startLocationTracking,
+    isMeasurementMode,
+    setIsMeasurementMode,
+    isOfflineSelectionMode,
+    startOfflineAreaSelection,
+    showOutdoorPOIs,
+    setShowOutdoorPOIs,
+    esriImageryEnabled,
+    toggleEsriImagery,
+  } = useMapbox(mapContainerRef);
+
+  const { isLoading: isOutdoorPOIsLoading } = useOutdoorPOIs(map, showOutdoorPOIs);
+
+  // Initialize map on mount
+  useEffect(() => {
+    initializeMap();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Start location tracking when map is ready
+  useEffect(() => {
+    if (isMapReady) {
+      startLocationTracking();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMapReady]);
+
+  // Sync activeDroneLayers with activeDroneImages from useMapbox
+  useEffect(() => {
+    if (activeDroneImages) {
+      const newActiveSet = new Set(activeDroneImages.keys());
+      setActiveDroneLayers(newActiveSet);
+    }
+  }, [activeDroneImages]);
+
+  // Drone images query
+  const { data: droneImages = [] } = useQuery<DroneImage[]>({
+    queryKey: ['/api/drone-images'],
+    enabled: isMapReady
+  });
 
   const { data: publicRoutes = [], isLoading: routesLoading } = useQuery<PublicRoute[]>({
     queryKey: ['/api/routes/public']
@@ -109,8 +167,8 @@ export default function Explore() {
       queryClient.invalidateQueries({ queryKey: ['/api/friend-requests/sent'] });
     },
     onError: (error: Error) => {
-      toast({ 
-        title: "Failed to send request", 
+      toast({
+        title: "Failed to send request",
         description: error.message,
         variant: "destructive"
       });
@@ -147,76 +205,58 @@ export default function Explore() {
     return `${hours}h ${mins}m`;
   };
 
-  useEffect(() => {
-    if (!mapContainer.current || mapInitialized.current) return;
-    
-    mapInitialized.current = true;
-    
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/satellite-streets-v12',
-      center: [-110.8, 43.5],
-      zoom: 8
-    });
-    
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+  // Handle drone layer toggling (same pattern as MapView)
+  const handleToggleDroneLayer = (droneImageId: number, isActive: boolean) => {
+    const newActiveLayers = new Set(activeDroneLayers);
 
-    // Restyle mountain peak labels: saturated blue + elevation in feet
-    map.current.on('load', () => {
-      try {
-        if (map.current?.getLayer('natural-point-label')) {
-          map.current.setPaintProperty('natural-point-label', 'text-color', '#4A9FE5');
-          map.current.setLayoutProperty('natural-point-label', 'text-field', [
-            'case',
-            ['has', 'elevation_m'],
-            ['concat',
-              ['get', 'name'],
-              '\n',
-              ['number-format', ['round', ['*', ['get', 'elevation_m'], 3.28084]], { 'locale': 'en-US' }],
-              ' ft'
-            ],
-            ['get', 'name']
-          ]);
-        }
-      } catch (e) { /* layer may not exist */ }
-    });
-
-    return () => {
-      if (map.current) {
-        map.current.remove();
-        map.current = null;
-        mapInitialized.current = false;
+    if (isActive) {
+      newActiveLayers.add(droneImageId);
+      const droneImage = droneImages?.find((img: DroneImage) => img.id === droneImageId);
+      if (droneImage && addDroneImagery) {
+        addDroneImagery(droneImage);
+        toast({
+          title: "Drone Imagery Added",
+          description: `Flying to ${droneImage.name}`,
+        });
       }
-    };
-  }, []);
+    } else {
+      newActiveLayers.delete(droneImageId);
+      if (removeDroneImageryById) {
+        removeDroneImageryById(droneImageId);
+      }
+    }
 
+    setActiveDroneLayers(newActiveLayers);
+  };
+
+  // Render public routes on the map
   useEffect(() => {
-    if (!map.current || publicRoutes.length === 0) return;
-    
-    const m = map.current;
+    if (!map || !isMapReady || publicRoutes.length === 0) return;
+
+    const m = map;
     const handlers: { layerId: string; type: string; handler: () => void }[] = [];
     const addedLayers: string[] = [];
     const addedSources: string[] = [];
-    
+
     const addRoutes = () => {
       publicRoutes.forEach((route, index) => {
         const sourceId = `public-route-${route.id}`;
         const layerId = `public-route-line-${route.id}`;
         const color = getRouteColor(index);
-        
+
         try {
           const pathData = JSON.parse(route.pathCoordinates);
           const coordinates = pathData.map((p: any) => [p.lng, p.lat]);
-          
+
           if (coordinates.length < 2) return;
-          
+
           if (m.getLayer(layerId)) {
             m.removeLayer(layerId);
           }
           if (m.getSource(sourceId)) {
             m.removeSource(sourceId);
           }
-          
+
           m.addSource(sourceId, {
             type: 'geojson',
             data: {
@@ -226,7 +266,7 @@ export default function Explore() {
             }
           });
           addedSources.push(sourceId);
-          
+
           m.addLayer({
             id: layerId,
             type: 'line',
@@ -238,30 +278,30 @@ export default function Explore() {
             }
           });
           addedLayers.push(layerId);
-          
+
           const clickHandler = () => {
             setSelectedRoute(route);
             setShowRouteInfo(true);
           };
-          
+
           const mouseEnterHandler = () => {
             m.getCanvas().style.cursor = 'pointer';
             if (m.getLayer(layerId)) {
               m.setPaintProperty(layerId, 'line-width', 6);
             }
           };
-          
+
           const mouseLeaveHandler = () => {
             m.getCanvas().style.cursor = '';
             if (m.getLayer(layerId)) {
               m.setPaintProperty(layerId, 'line-width', 4);
             }
           };
-          
+
           m.on('click', layerId, clickHandler);
           m.on('mouseenter', layerId, mouseEnterHandler);
           m.on('mouseleave', layerId, mouseLeaveHandler);
-          
+
           handlers.push({ layerId, type: 'click', handler: clickHandler });
           handlers.push({ layerId, type: 'mouseenter', handler: mouseEnterHandler });
           handlers.push({ layerId, type: 'mouseleave', handler: mouseLeaveHandler });
@@ -270,13 +310,13 @@ export default function Explore() {
         }
       });
     };
-    
+
     if (m.isStyleLoaded()) {
       addRoutes();
     } else {
       m.on('load', addRoutes);
     }
-    
+
     return () => {
       if (!m) return;
       handlers.forEach(({ layerId, type, handler }) => {
@@ -293,19 +333,19 @@ export default function Explore() {
         }
       });
     };
-  }, [publicRoutes]);
+  }, [publicRoutes, isMapReady, map]);
 
   const flyToRoute = (route: PublicRoute) => {
-    if (!map.current) return;
-    
+    if (!map) return;
+
     try {
       const pathData = JSON.parse(route.pathCoordinates);
       if (pathData.length === 0) return;
-      
+
       const bounds = new mapboxgl.LngLatBounds();
       pathData.forEach((p: any) => bounds.extend([p.lng, p.lat]));
-      
-      map.current.fitBounds(bounds, { padding: 50 });
+
+      map.fitBounds(bounds, { padding: 50 });
     } catch (error) {
       console.error('Error flying to route:', error);
     }
@@ -315,9 +355,9 @@ export default function Explore() {
     <div className="h-screen w-screen flex flex-col bg-gray-900">
       <div className="bg-gray-900/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between z-10 border-b border-gray-700" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}>
         <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setLocation("/")}
             data-testid="button-back"
           >
@@ -331,10 +371,10 @@ export default function Explore() {
           </div>
         </div>
       </div>
-      
+
       <div className="flex-1 relative">
-        <div ref={mapContainer} className="absolute inset-0" />
-        
+        <div ref={mapContainerRef} className="absolute inset-0" />
+
         {routesLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50">
             <div className="text-white flex items-center gap-2">
@@ -343,27 +383,57 @@ export default function Explore() {
             </div>
           </div>
         )}
+
+        {/* Right-side map controls (zoom, compass, GPS) */}
+        <MapControls
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onMyLocation={flyToUserLocation}
+          onResetNorth={resetNorth}
+          onToggleTerrain={toggleTerrain}
+        />
+
+        {/* Bottom toolbar — Explore section only (2D/3D, Layers, Drone, Measure) */}
+        <UnifiedToolbar
+          onToggleLayer={toggleLayer}
+          activeLayers={activeLayers}
+          activeTrailOverlays={activeTrailOverlays}
+          onStartOfflineSelection={startOfflineAreaSelection}
+          onToggleDroneLayer={handleToggleDroneLayer}
+          activeDroneLayers={activeDroneLayers}
+          onOpenRouteBuilder={() => {}}
+          isMeasurementMode={isMeasurementMode}
+          onToggleMeasurement={() => setIsMeasurementMode(!isMeasurementMode)}
+          isOfflineSelectionMode={isOfflineSelectionMode}
+          isRecordingActive={true}
+          showOutdoorPOIs={showOutdoorPOIs}
+          isOutdoorPOIsLoading={isOutdoorPOIsLoading}
+          onToggleOutdoorPOIs={() => setShowOutdoorPOIs(!showOutdoorPOIs)}
+          esriImageryEnabled={esriImageryEnabled}
+          onToggleEsriImagery={toggleEsriImagery}
+        />
       </div>
-      
+
+      {/* Route info bottom sheet */}
       {showRouteInfo && selectedRoute && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-end justify-center">
           <div className="bg-gray-900 w-full max-w-lg rounded-t-3xl max-h-[70vh] overflow-hidden">
             <div className="p-4 border-b border-gray-700 flex items-center justify-between">
               <h2 className="text-white font-semibold text-lg">{selectedRoute.name}</h2>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="icon"
                 onClick={() => setShowRouteInfo(false)}
               >
                 <X className="w-5 h-5 text-white" />
               </Button>
             </div>
-            
+
             <ScrollArea className="p-4 max-h-[50vh]">
               {selectedRoute.description && (
                 <p className="text-gray-400 text-sm mb-4">{selectedRoute.description}</p>
               )}
-              
+
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="bg-gray-800 rounded-xl p-3">
                   <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
@@ -402,7 +472,7 @@ export default function Explore() {
                   </p>
                 </div>
               </div>
-              
+
               <div className="bg-gray-800 rounded-xl p-4 mb-4">
                 <p className="text-gray-400 text-xs mb-2">Created by</p>
                 <div className="flex items-center justify-between">
@@ -456,7 +526,7 @@ export default function Explore() {
                   </div>
                 </div>
               </div>
-              
+
               <Button
                 className="w-full"
                 onClick={() => {
@@ -472,21 +542,22 @@ export default function Explore() {
           </div>
         </div>
       )}
-      
+
+      {/* User profile modal */}
       {showUserProfile && selectedUserProfile && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
           <div className="bg-gray-900 w-full max-w-lg rounded-2xl max-h-[80vh] overflow-hidden">
             <div className="p-4 border-b border-gray-700 flex items-center justify-between">
               <h2 className="text-white font-semibold text-lg">User Profile</h2>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="icon"
                 onClick={() => setShowUserProfile(false)}
               >
                 <X className="w-5 h-5 text-white" />
               </Button>
             </div>
-            
+
             <div className="p-4">
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-16 h-16 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-2xl">
@@ -524,7 +595,7 @@ export default function Explore() {
                   )
                 )}
               </div>
-              
+
               <h3 className="text-white font-medium mb-3">Public Routes</h3>
               <ScrollArea className="max-h-[40vh]">
                 <div className="space-y-2">
@@ -540,7 +611,7 @@ export default function Explore() {
                       data-testid={`route-${route.id}`}
                     >
                       <div className="flex items-center gap-3">
-                        <div 
+                        <div
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: getRouteColor(index) }}
                         />
