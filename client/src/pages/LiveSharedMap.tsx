@@ -1323,7 +1323,7 @@ export default function LiveSharedMap() {
             // Show tap-to-play banner (for iOS which blocks auto-play without gesture)
             if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
             setIncomingVoiceBanner(newMsg);
-            bannerTimerRef.current = setTimeout(() => setIncomingVoiceBanner(null), 8000);
+            bannerTimerRef.current = setTimeout(() => setIncomingVoiceBanner(null), 10000);
             if (!showRadioRef.current) {
               setUnheardVoiceCount(prev => prev + 1);
             }
@@ -1979,7 +1979,7 @@ export default function LiveSharedMap() {
               // Show tap-to-play banner
               if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
               setIncomingVoiceBanner(newMsg);
-              bannerTimerRef.current = setTimeout(() => setIncomingVoiceBanner(null), 8000);
+              bannerTimerRef.current = setTimeout(() => setIncomingVoiceBanner(null), 10000);
               if (!showRadioRef.current) {
                 setUnheardVoiceCount(prev => prev + 1);
               }
@@ -2371,9 +2371,9 @@ export default function LiveSharedMap() {
             </button>
           </div>
 
-          {/* Quick-Record Floating Mic Button (upper-left) */}
+          {/* Quick-Record Floating Mic Button (upper-right, below nav controls, above GPS button) */}
           {!showRadio && !quickRecording && !showChat && !showMembers && (
-            <div className="absolute top-4 left-4 z-30 flex items-center gap-2" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
+            <div className="absolute top-32 right-4 z-30 flex flex-col items-center gap-2" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
               <button
                 onClick={handleQuickRecordStart}
                 className="quick-record-btn bg-red-600 rounded-full p-3 min-w-[52px] min-h-[52px] flex items-center justify-center shadow-lg hover:bg-red-700 active:scale-95 transition-all border-2 border-white/20"
@@ -2382,7 +2382,7 @@ export default function LiveSharedMap() {
                 <Mic className="h-6 w-6 text-white" />
               </button>
               {quickSentFlash && (
-                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap">
+                <div className="bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap">
                   Sent!
                 </div>
               )}
