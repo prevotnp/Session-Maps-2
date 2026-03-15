@@ -53,6 +53,7 @@ export default function RouteBuilderModal({
   const [routingMode, setRoutingMode] = useState<'direct' | 'road' | 'trail' | 'draw'>('direct');
   const [trailProfile, setTrailProfile] = useState<TrailProfile>('foot-hiking');
   const [isPublic, setIsPublic] = useState(false);
+  const [activityType, setActivityType] = useState<'hiking' | 'running' | 'skiing' | 'river' | 'cycling'>('hiking');
 
   // AI route generation state
   const [showAiPrompt, setShowAiPrompt] = useState(false);
@@ -396,6 +397,7 @@ export default function RouteBuilderModal({
       description: description.trim(),
       routingMode,
       trailProfile: routingMode === 'trail' ? trailProfile : undefined,
+      activityType,
       isPublic,
       waypointIds: JSON.stringify([]),
       pathCoordinates: JSON.stringify(pathCoordinates),
@@ -410,6 +412,7 @@ export default function RouteBuilderModal({
     setDescription('');
     setRoutingMode('direct');
     setTrailProfile('foot-hiking');
+    setActivityType('hiking');
     setIsPublic(false);
     setAiWaypoints([]);
     setShowAiPrompt(false);
@@ -543,6 +546,35 @@ export default function RouteBuilderModal({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Activity Type */}
+          <div>
+            <Label className="text-xs">Activity Type</Label>
+            <div className="grid grid-cols-5 gap-1 mt-1">
+              {([
+                { value: 'hiking' as const, label: 'Hiking', icon: '🥾', color: 'bg-yellow-600' },
+                { value: 'running' as const, label: 'Running', icon: '🏃', color: 'bg-yellow-600' },
+                { value: 'skiing' as const, label: 'Skiing', icon: '⛷️', color: 'bg-blue-600' },
+                { value: 'river' as const, label: 'River', icon: '🛶', color: 'bg-red-600' },
+                { value: 'cycling' as const, label: 'Cycling', icon: '🚴', color: 'bg-pink-600' },
+              ]).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`p-1.5 border rounded text-[11px] font-medium transition-colors flex flex-col items-center justify-center gap-0.5 ${
+                    activityType === option.value
+                      ? `${option.color} text-white border-transparent`
+                      : 'bg-background hover:bg-muted border-border'
+                  }`}
+                  onClick={() => setActivityType(option.value)}
+                  data-testid={`button-activity-${option.value}`}
+                >
+                  <span className="text-sm">{option.icon}</span>
+                  <span>{option.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* AI Route Generation */}

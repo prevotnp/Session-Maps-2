@@ -17,7 +17,9 @@ import {
   Eye,
   User,
   Check,
-  Loader2
+  Loader2,
+  ChevronDown,
+  Filter
 } from "lucide-react";
 import { useMapbox } from "@/hooks/useMapbox";
 import { useOutdoorPOIs } from "@/hooks/useOutdoorPOIs";
@@ -26,11 +28,24 @@ import UnifiedToolbar from "@/components/UnifiedToolbar";
 import { DroneImage } from "@shared/schema";
 import mapboxgl from "mapbox-gl";
 
-const ROUTE_COLORS = [
-  '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
-  '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6',
-  '#a855f7', '#d946ef', '#ec4899', '#f43f5e'
+// Activity-based route colors
+const ACTIVITY_COLORS: Record<string, string> = {
+  skiing: '#3B82F6',    // Blue
+  river: '#EF4444',     // Red
+  hiking: '#EAB308',    // Yellow
+  running: '#EAB308',   // Yellow
+  cycling: '#EC4899',   // Pink
+};
+
+const ACTIVITY_OPTIONS = [
+  { value: 'hiking', label: 'Hiking', icon: '🥾', color: '#EAB308' },
+  { value: 'running', label: 'Running', icon: '🏃', color: '#EAB308' },
+  { value: 'skiing', label: 'Skiing', icon: '⛷️', color: '#3B82F6' },
+  { value: 'river', label: 'River Trips', icon: '🛶', color: '#EF4444' },
+  { value: 'cycling', label: 'Cycling', icon: '🚴', color: '#EC4899' },
 ];
+
+const DEFAULT_ROUTE_COLOR = '#EAB308'; // Yellow for routes without activity type
 
 interface RouteOwner {
   id: number;
@@ -49,6 +64,7 @@ interface PublicRoute {
   elevationLoss: string | null;
   estimatedTime: number | null;
   routingMode: string;
+  activityType: string | null;
   createdAt: string;
   owner: RouteOwner;
 }
@@ -79,6 +95,8 @@ export default function Explore() {
   const [showRouteInfo, setShowRouteInfo] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [activeDroneLayers, setActiveDroneLayers] = useState<Set<number>>(new Set());
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(ACTIVITY_OPTIONS.map(a => a.value)));
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
@@ -188,7 +206,28 @@ export default function Explore() {
     }
   };
 
-  const getRouteColor = (index: number) => ROUTE_COLORS[index % ROUTE_COLORS.length];
+  const getRouteColor = (route: PublicRoute) => {
+    const activity = route.activityType || 'hiking';
+    return ACTIVITY_COLORS[activity] || DEFAULT_ROUTE_COLOR;
+  };
+
+  const toggleFilter = (activity: string) => {
+    setActiveFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(activity)) {
+        next.delete(activity);
+      } else {
+        next.add(activity);
+      }
+      return next;
+    });
+  };
+
+  // Filter routes by selected activities
+  const filteredRoutes = publicRoutes.filter(route => {
+    const activity = route.activityType || 'hiking';
+    return activeFilters.has(activity);
+  });
 
   const formatDistance = (meters: string | null) => {
     if (!meters) return 'N/A';
@@ -229,9 +268,9 @@ export default function Explore() {
     setActiveDroneLayers(newActiveLayers);
   };
 
-  // Render public routes on the map
+  // Render filtered routes on the map
   useEffect(() => {
-    if (!map || !isMapReady || publicRoutes.length === 0) return;
+    if (!map || !isMapReady) return;
 
     const m = map;
     const handlers: { layerId: string; type: string; handler: () => void }[] = [];
@@ -239,10 +278,10 @@ export default function Explore() {
     const addedSources: string[] = [];
 
     const addRoutes = () => {
-      publicRoutes.forEach((route, index) => {
+      filteredRoutes.forEach((route) => {
         const sourceId = `public-route-${route.id}`;
         const layerId = `public-route-line-${route.id}`;
-        const color = getRouteColor(index);
+        const color = getRouteColor(route);
 
         try {
           const pathData = JSON.parse(route.pathCoordinates);
@@ -333,7 +372,7 @@ export default function Explore() {
         }
       });
     };
-  }, [publicRoutes, isMapReady, map]);
+  }, [filteredRoutes, isMapReady, map]);
 
   const flyToRoute = (route: PublicRoute) => {
     if (!map) return;
@@ -353,24 +392,95 @@ export default function Explore() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-gray-900">
-      <div className="bg-gray-900/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between z-10 border-b border-gray-700" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setLocation("/")}
-            data-testid="button-back"
-          >
-            <ArrowLeft className="w-5 h-5 text-white" />
-          </Button>
-          <div>
-            <h1 className="text-white font-semibold text-lg">Explore Routes</h1>
-            <p className="text-gray-400 text-sm">
-              {routesLoading ? 'Loading...' : `${publicRoutes.length} public routes`}
-            </p>
+      <div className="bg-gray-900/95 backdrop-blur-sm px-4 py-3 z-10 border-b border-gray-700" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation("/")}
+              data-testid="button-back"
+            >
+              <ArrowLeft className="w-5 h-5 text-white" />
+            </Button>
+            <div>
+              <h1 className="text-white font-semibold text-lg">Explore Routes</h1>
+              <p className="text-gray-400 text-sm">
+                {routesLoading ? 'Loading...' : `${filteredRoutes.length} of ${publicRoutes.length} routes`}
+              </p>
+            </div>
+          </div>
+
+          {/* Filter dropdown button */}
+          <div className="relative">
+            <button
+              onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                activeFilters.size < ACTIVITY_OPTIONS.length
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white/10 text-white/80 hover:bg-white/20'
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filter</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showFilterDropdown && (
+              <div className="absolute right-0 top-full mt-2 w-56 bg-gray-800 rounded-xl border border-white/10 shadow-2xl overflow-hidden z-50">
+                <div className="px-3 py-2 border-b border-white/10">
+                  <p className="text-white/60 text-xs font-medium uppercase tracking-wide">Filter by Activity</p>
+                </div>
+                {ACTIVITY_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => toggleFilter(option.value)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition-colors"
+                  >
+                    <div
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                        activeFilters.has(option.value)
+                          ? 'border-transparent'
+                          : 'border-white/30 bg-transparent'
+                      }`}
+                      style={activeFilters.has(option.value) ? { backgroundColor: option.color } : {}}
+                    >
+                      {activeFilters.has(option.value) && (
+                        <Check className="w-3 h-3 text-white" />
+                      )}
+                    </div>
+                    <span className="text-lg">{option.icon}</span>
+                    <span className="text-white text-sm">{option.label}</span>
+                    <div
+                      className="w-3 h-3 rounded-full ml-auto"
+                      style={{ backgroundColor: option.color }}
+                    />
+                  </button>
+                ))}
+                <div className="px-3 py-2 border-t border-white/10 flex gap-2">
+                  <button
+                    onClick={() => setActiveFilters(new Set(ACTIVITY_OPTIONS.map(a => a.value)))}
+                    className="flex-1 text-xs text-white/60 hover:text-white py-1 transition-colors"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={() => setActiveFilters(new Set())}
+                    className="flex-1 text-xs text-white/60 hover:text-white py-1 transition-colors"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Click outside to close filter dropdown */}
+      {showFilterDropdown && (
+        <div className="fixed inset-0 z-[9]" onClick={() => setShowFilterDropdown(false)} />
+      )}
 
       <div className="flex-1 relative">
         <div ref={mapContainerRef} className="absolute inset-0" />
@@ -465,11 +575,17 @@ export default function Explore() {
                 <div className="bg-gray-800 rounded-xl p-3">
                   <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
                     <MapPin className="w-3 h-3" />
-                    Mode
+                    Activity
                   </div>
-                  <p className="text-white font-semibold capitalize">
-                    {selectedRoute.routingMode}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <div
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: getRouteColor(selectedRoute) }}
+                    />
+                    <p className="text-white font-semibold capitalize">
+                      {selectedRoute.activityType || 'hiking'}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -613,7 +729,7 @@ export default function Explore() {
                       <div className="flex items-center gap-3">
                         <div
                           className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: getRouteColor(index) }}
+                          style={{ backgroundColor: ACTIVITY_COLORS[(route as any).activityType || 'hiking'] || DEFAULT_ROUTE_COLOR }}
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-white font-medium truncate">{route.name}</p>
