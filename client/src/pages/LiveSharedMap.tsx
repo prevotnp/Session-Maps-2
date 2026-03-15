@@ -36,7 +36,8 @@ import {
   ChevronDown,
   ChevronUp,
   Mic,
-  Volume2
+  Volume2,
+  Crosshair
 } from "lucide-react";
 import { PiBirdFill } from "react-icons/pi";
 import { cn } from "@/lib/utils";
@@ -46,6 +47,7 @@ import { isNative } from "@/lib/capacitor";
 import { startBackgroundTracking, stopBackgroundTracking } from "@/lib/backgroundLocation";
 import { startKeepAlive, stopKeepAlive } from "@/lib/silentAudioKeepAlive";
 import RadioPanel, { type VoiceMessage, playVoiceMessage } from "@/components/RadioPanel";
+import BeaconFinder from '@/components/BeaconFinder';
 import { registerPushSubscription } from "@/lib/pushNotifications";
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
@@ -244,6 +246,8 @@ export default function LiveSharedMap() {
   const poiMarkersRef = useRef<Map<number, mapboxgl.Marker>>(new Map());
   const watchIdRef = useRef<number | null>(null);
   const userLocationRef = useRef<{ lng: number; lat: number } | null>(null);
+  const memberLocationsRef = useRef<Map<number, { lat: number; lng: number; accuracy?: number }>>(new Map());
+  const [beaconTarget, setBeaconTarget] = useState<{ userId: number; username: string; color: string } | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
   const intentionalCloseRef = useRef(false);
@@ -1289,6 +1293,11 @@ export default function LiveSharedMap() {
             if (updateMemberMarkerRef.current) {
               updateMemberMarkerRef.current(data.data.userId, data.data.latitude, data.data.longitude);
             }
+            memberLocationsRef.current.set(data.data.userId, {
+              lat: data.data.latitude,
+              lng: data.data.longitude,
+              accuracy: data.data.accuracy,
+            });
             break;
           case 'member:joined':
           case 'member:left':
@@ -1951,6 +1960,11 @@ export default function LiveSharedMap() {
               if (updateMemberMarkerRef.current) {
                 updateMemberMarkerRef.current(data.data.userId, data.data.latitude, data.data.longitude);
               }
+              memberLocationsRef.current.set(data.data.userId, {
+                lat: data.data.latitude,
+                lng: data.data.longitude,
+                accuracy: data.data.accuracy,
+              });
               break;
             case 'member:joined':
             case 'member:left':
@@ -2952,20 +2966,41 @@ export default function LiveSharedMap() {
                       </p>
                     </div>
                     {member.latitude && (
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        className="h-10 w-10"
-                        onClick={() => {
-                          setShowMembers(false);
-                          map.current?.flyTo({
-                            center: [parseFloat(member.longitude!), parseFloat(member.latitude!)],
-                            zoom: 15
-                          });
-                        }}
-                      >
-                        <Navigation className="w-5 h-5" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-10 w-10"
+                          onClick={() => {
+                            setShowMembers(false);
+                            map.current?.flyTo({
+                              center: [parseFloat(member.longitude!), parseFloat(member.latitude!)],
+                              zoom: 15
+                            });
+                          }}
+                          title="Go to location"
+                        >
+                          <Navigation className="w-5 h-5" />
+                        </Button>
+                        {member.userId !== user?.id && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-10 px-3 bg-green-600/20 border-green-500/50 text-green-400 hover:bg-green-600/30"
+                            onClick={() => {
+                              setShowMembers(false);
+                              setBeaconTarget({
+                                userId: member.userId,
+                                username: member.user.fullName || member.user.username,
+                                color: getMemberColor(member.userId, session?.members || [], user?.id),
+                              });
+                            }}
+                          >
+                            <Crosshair className="w-4 h-4 mr-1" />
+                            Beacon
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -3284,6 +3319,20 @@ export default function LiveSharedMap() {
             currentUsername={user.fullName || user.username}
             voiceMessages={voiceMessages}
             onNewVoiceMessage={(msg) => setVoiceMessages(prev => [...prev.slice(-49), msg])}
+          />
+        )}
+
+        {/* Beacon Finder Overlay */}
+        {beaconTarget && (
+          <BeaconFinder
+            isOpen={!!beaconTarget}
+            onClose={() => setBeaconTarget(null)}
+            targetUserId={beaconTarget.userId}
+            targetUsername={beaconTarget.username}
+            targetColor={beaconTarget.color}
+            userLocationRef={userLocationRef}
+            sessionMembers={session?.members || []}
+            memberLocationsRef={memberLocationsRef}
           />
         )}
       </div>
