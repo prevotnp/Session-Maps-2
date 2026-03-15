@@ -35,7 +35,8 @@ import {
   Satellite,
   ChevronDown,
   ChevronUp,
-  Mic
+  Mic,
+  Volume2
 } from "lucide-react";
 import { PiBirdFill } from "react-icons/pi";
 import { cn } from "@/lib/utils";
@@ -228,6 +229,10 @@ export default function LiveSharedMap() {
   const quickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const quickStartTimeRef = useRef(0);
   const quickStreamRef = useRef<MediaStream | null>(null);
+
+  // Incoming voice message banner state
+  const [incomingVoiceBanner, setIncomingVoiceBanner] = useState<VoiceMessage | null>(null);
+  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -1315,7 +1320,10 @@ export default function LiveSharedMap() {
               hasPlayed: false,
             };
             setVoiceMessages(prev => [...prev.slice(-49), newMsg]);
-            playVoiceMessage(newMsg);
+            // Show tap-to-play banner (for iOS which blocks auto-play without gesture)
+            if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+            setIncomingVoiceBanner(newMsg);
+            bannerTimerRef.current = setTimeout(() => setIncomingVoiceBanner(null), 10000);
             if (!showRadioRef.current) {
               setUnheardVoiceCount(prev => prev + 1);
             }
@@ -1340,7 +1348,7 @@ export default function LiveSharedMap() {
             break;
         }
       };
-      
+
       ws.onerror = () => {
         console.error('WebSocket error');
       };
@@ -1371,9 +1379,15 @@ export default function LiveSharedMap() {
         wsRef.current.close();
         wsRef.current = null;
       }
+      // Clean up geolocation watch
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
       stopBackgroundTracking();
       stopKeepAlive();
       stopPwaBackgroundPolling();
+      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
     };
   }, [sessionId, user, stopPwaBackgroundPolling]);
 
@@ -1867,19 +1881,21 @@ export default function LiveSharedMap() {
 
   const startPwaBackgroundPolling = useCallback(async () => {
     if (!sessionId) return;
+    // Don't start a second polling loop
+    if (bgIntervalRef.current) return;
 
     try {
+      // Get auth token for background HTTP requests
       const res = await apiRequest('POST', `/api/live-maps/${sessionId}/background-token`);
       const { token } = await res.json();
       bgTokenRef.current = token;
 
-      bgIntervalRef.current = setInterval(() => {
+      // Helper: get current position and POST it to server
+      const sendBackgroundLocation = () => {
         if (!bgTokenRef.current) return;
-
         navigator.geolocation.getCurrentPosition(
           (position) => {
             const { latitude, longitude, accuracy, heading } = position.coords;
-
             fetch(`/api/live-maps/${sessionId}/background-location`, {
               method: 'POST',
               headers: {
@@ -1887,6 +1903,8 @@ export default function LiveSharedMap() {
                 'Authorization': `Bearer ${bgTokenRef.current}`,
               },
               body: JSON.stringify({ latitude, longitude, accuracy, heading }),
+              // keepalive allows the request to outlive the page
+              keepalive: true,
             }).catch((err) => {
               console.warn('[PWA Background] HTTP location post failed:', err);
             });
@@ -1894,9 +1912,15 @@ export default function LiveSharedMap() {
           (err) => {
             console.warn('[PWA Background] getCurrentPosition failed:', err);
           },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
         );
-      }, 5000);
+      };
+
+      // Send immediately — don't wait 10 seconds for first poll
+      sendBackgroundLocation();
+
+      // Then poll every 10 seconds (more reliable than 5s under browser throttling)
+      bgIntervalRef.current = setInterval(sendBackgroundLocation, 10000);
     } catch (err) {
       console.error('[PWA Background] Failed to start background polling:', err);
     }
@@ -1952,7 +1976,10 @@ export default function LiveSharedMap() {
                 hasPlayed: false,
               };
               setVoiceMessages(prev => [...prev.slice(-49), newMsg]);
-              playVoiceMessage(newMsg);
+              // Show tap-to-play banner
+              if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+              setIncomingVoiceBanner(newMsg);
+              bannerTimerRef.current = setTimeout(() => setIncomingVoiceBanner(null), 10000);
               if (!showRadioRef.current) {
                 setUnheardVoiceCount(prev => prev + 1);
               }
@@ -2023,9 +2050,9 @@ export default function LiveSharedMap() {
     console.log('Live Map: Fully resumed after background');
   }, [user, sessionId, updateMemberMarker, queryClient, stopPwaBackgroundPolling]);
 
-  const handleBackgroundEnter = useCallback(() => {
+  const handleBackgroundEnter = useCallback(async () => {
     if (isMobilePwa) {
-      startKeepAlive();
+      await startKeepAlive();
       startPwaBackgroundPolling();
     }
   }, [isMobilePwa, startPwaBackgroundPolling]);
@@ -2293,7 +2320,7 @@ export default function LiveSharedMap() {
 
           {/* Quick-Record Floating Mic Button (upper-left) */}
           {!showRadio && !quickRecording && !showChat && !showMembers && (
-            <div className="absolute top-4 left-4 z-30" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
+            <div className="absolute top-4 left-4 z-30 flex items-center gap-2" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
               <button
                 onClick={handleQuickRecordStart}
                 className="quick-record-btn bg-red-600 rounded-full p-3 min-w-[52px] min-h-[52px] flex items-center justify-center shadow-lg hover:bg-red-700 active:scale-95 transition-all border-2 border-white/20"
@@ -2306,6 +2333,48 @@ export default function LiveSharedMap() {
                   Sent!
                 </div>
               )}
+
+              {/* Incoming voice message tap-to-play banner */}
+              {incomingVoiceBanner && (
+                <button
+                  onClick={() => {
+                    const msg = incomingVoiceBanner;
+                    // Clear banner immediately on tap
+                    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+                    setIncomingVoiceBanner(null);
+                    // Play with user gesture (satisfies iOS autoplay policy)
+                    playVoiceMessage(msg);
+                  }}
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 active:scale-95 transition-all text-white px-3 py-2 rounded-full shadow-lg border border-white/20 animate-in slide-in-from-left-2 duration-300"
+                  aria-label={`Play voice message from ${incomingVoiceBanner.username}`}
+                >
+                  <Volume2 className="h-5 w-5 text-white flex-shrink-0" />
+                  <span className="text-sm font-medium whitespace-nowrap">
+                    From {incomingVoiceBanner.username}
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Voice banner when quick-record area is hidden (radio/chat/members open) */}
+          {(showRadio || showChat || showMembers) && incomingVoiceBanner && (
+            <div className="absolute top-4 left-4 z-30" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
+              <button
+                onClick={() => {
+                  const msg = incomingVoiceBanner;
+                  if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+                  setIncomingVoiceBanner(null);
+                  playVoiceMessage(msg);
+                }}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 active:scale-95 transition-all text-white px-3 py-2 rounded-full shadow-lg border border-white/20 animate-in slide-in-from-left-2 duration-300"
+                aria-label={`Play voice message from ${incomingVoiceBanner.username}`}
+              >
+                <Volume2 className="h-5 w-5 text-white flex-shrink-0" />
+                <span className="text-sm font-medium whitespace-nowrap">
+                  From {incomingVoiceBanner.username}
+                </span>
+              </button>
             </div>
           )}
 

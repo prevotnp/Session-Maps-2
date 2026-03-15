@@ -251,6 +251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const existing = disconnectTimers.get(timerKey);
         if (existing) clearTimeout(existing);
 
+        // 90 seconds to allow background HTTP polling to kick in before marking disconnected
         const timer = setTimeout(() => {
           disconnectTimers.delete(timerKey);
           const room = sessionRooms.get(sessionIdForTimer);
@@ -265,7 +266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
             }
           }
-        }, 30000);
+        }, 90000);
 
         disconnectTimers.set(timerKey, timer);
       }
@@ -285,6 +286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const existingTimer = disconnectTimers.get(timerKey);
               if (existingTimer) clearTimeout(existingTimer);
 
+              // 90 seconds to allow background HTTP polling to kick in
               const timer = setTimeout(() => {
                 disconnectTimers.delete(timerKey);
                 const currentRoom = sessionRooms.get(sessionId);
@@ -299,7 +301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     });
                   }
                 }
-              }, 30000);
+              }, 90000);
 
               disconnectTimers.set(timerKey, timer);
             }
