@@ -19,7 +19,8 @@ import {
   Check,
   Loader2,
   ChevronDown,
-  Filter
+  Filter,
+  Calendar
 } from "lucide-react";
 import { useMapbox } from "@/hooks/useMapbox";
 import { useOutdoorPOIs } from "@/hooks/useOutdoorPOIs";
@@ -65,6 +66,8 @@ interface PublicRoute {
   estimatedTime: number | null;
   routingMode: string;
   activityType: string | null;
+  startTime: string | null;
+  endTime: string | null;
   createdAt: string;
   owner: RouteOwner;
 }
@@ -242,6 +245,23 @@ export default function Explore() {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${hours}h ${mins}m`;
+  };
+
+  const formatTripDates = (startTime: string | null, endTime: string | null) => {
+    if (!startTime) return null;
+    const start = new Date(startTime);
+    const end = endTime ? new Date(endTime) : null;
+    const fmtDate = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+    const fmtTime = (d: Date) => {
+      let h = d.getHours(); const m = d.getMinutes(); const ap = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return `${h}:${m.toString().padStart(2, '0')} ${ap}`;
+    };
+    if (!end) return `${fmtDate(start)} ${fmtTime(start)}`;
+    const sd = fmtDate(start); const ed = fmtDate(end);
+    if (sd === ed) return `${sd} · ${fmtTime(start)} - ${fmtTime(end)}`;
+    const days = Math.ceil((end.getTime() - start.getTime()) / 86400000);
+    return `${sd} - ${ed} · ${days} day${days !== 1 ? 's' : ''}`;
   };
 
   // Handle drone layer toggling (same pattern as MapView)
@@ -588,6 +608,15 @@ export default function Explore() {
                   </div>
                 </div>
               </div>
+
+              {selectedRoute.startTime && (
+                <div className="bg-gray-800 rounded-xl p-3 mb-4 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span className="text-white text-sm">
+                    {formatTripDates(selectedRoute.startTime, selectedRoute.endTime)}
+                  </span>
+                </div>
+              )}
 
               <div className="bg-gray-800 rounded-xl p-4 mb-4">
                 <p className="text-gray-400 text-xs mb-2">Created by</p>

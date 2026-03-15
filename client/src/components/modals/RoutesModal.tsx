@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Route as RouteIcon, Map, Clock, Ruler, Mountain, X, UserPlus, Trash2, Share2, Box, Search, Check } from 'lucide-react';
+import { Route as RouteIcon, Map, Clock, Ruler, Mountain, X, UserPlus, Trash2, Share2, Box, Search, Check, Calendar } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Route } from '@shared/schema';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -213,6 +213,40 @@ const RoutesModal: React.FC<RoutesModalProps> = ({ isOpen, onClose, onSelectRout
     return `${Math.round(feet)} ft`;
   };
 
+  const formatTripDates = (startTime: string | Date | null | undefined, endTime: string | Date | null | undefined) => {
+    if (!startTime) return null;
+    const start = new Date(startTime);
+    const end = endTime ? new Date(endTime) : null;
+
+    const formatDate = (d: Date) => {
+      return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+    };
+    const formatTime12 = (d: Date) => {
+      let h = d.getHours();
+      const m = d.getMinutes();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return `${h}:${m.toString().padStart(2, '0')} ${ampm}`;
+    };
+
+    if (!end) {
+      return `${formatDate(start)} ${formatTime12(start)}`;
+    }
+
+    const startDate = formatDate(start);
+    const endDate = formatDate(end);
+
+    if (startDate === endDate) {
+      // Same day
+      return `${startDate} · ${formatTime12(start)} - ${formatTime12(end)}`;
+    }
+
+    // Multi-day: calculate duration
+    const diffMs = end.getTime() - start.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    return `${startDate} - ${endDate} · ${diffDays} day${diffDays !== 1 ? 's' : ''}`;
+  };
+
   const handleRouteClick = (route: Route) => {
     if ((route as any).cesiumTilesetId) {
       navigate(`/cesium/${(route as any).cesiumTilesetId}?routeId=${route.id}`);
@@ -330,6 +364,14 @@ const RoutesModal: React.FC<RoutesModalProps> = ({ isOpen, onClose, onSelectRout
             </div>
           )}
         </div>
+
+        {/* Trip dates */}
+        {route.startTime && (
+          <div className="flex items-center gap-2 mt-2 text-sm">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span>{formatTripDates(route.startTime, route.endTime)}</span>
+          </div>
+        )}
         
         <div className="mt-3 pt-3 border-t flex flex-wrap gap-2">
           <Button 

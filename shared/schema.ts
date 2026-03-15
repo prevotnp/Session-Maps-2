@@ -154,6 +154,8 @@ export const routes = pgTable("routes", {
   estimatedTime: integer("estimated_time"), // in minutes
   routingMode: text("routing_mode").notNull().default("direct"), // 'direct', 'road', or 'trail' (legacy: 'rivers' treated as 'trail')
   activityType: text("activity_type").default("hiking"), // 'hiking', 'skiing', 'river', 'cycling', 'running'
+  startTime: timestamp("start_time"), // When the route/trip starts
+  endTime: timestamp("end_time"), // When the route/trip ends
   cesiumTilesetId: integer("cesium_tileset_id").references(() => cesium3dTilesets.id, { onDelete: 'set null' }),
   isPublic: boolean("is_public").default(false),
   createdAt: timestamp("created_at").defaultNow(),

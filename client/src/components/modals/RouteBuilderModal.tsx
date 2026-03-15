@@ -54,6 +54,8 @@ export default function RouteBuilderModal({
   const [trailProfile, setTrailProfile] = useState<TrailProfile>('foot-hiking');
   const [isPublic, setIsPublic] = useState(false);
   const [activityType, setActivityType] = useState<'hiking' | 'running' | 'skiing' | 'river' | 'cycling'>('hiking');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
 
   // AI route generation state
   const [showAiPrompt, setShowAiPrompt] = useState(false);
@@ -399,6 +401,8 @@ export default function RouteBuilderModal({
       trailProfile: routingMode === 'trail' ? trailProfile : undefined,
       activityType,
       isPublic,
+      startTime: startTime ? new Date(startTime).toISOString() : undefined,
+      endTime: endTime ? new Date(endTime).toISOString() : undefined,
       waypointIds: JSON.stringify([]),
       pathCoordinates: JSON.stringify(pathCoordinates),
       waypointCoordinates: JSON.stringify(waypointCoordinates),
@@ -413,6 +417,8 @@ export default function RouteBuilderModal({
     setRoutingMode('direct');
     setTrailProfile('foot-hiking');
     setActivityType('hiking');
+    setStartTime('');
+    setEndTime('');
     setIsPublic(false);
     setAiWaypoints([]);
     setShowAiPrompt(false);
@@ -574,6 +580,31 @@ export default function RouteBuilderModal({
                   <span>{option.label}</span>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Start/End Time (optional) */}
+          <div>
+            <Label className="text-xs">Trip Dates (optional)</Label>
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              <div>
+                <label className="text-[10px] text-muted-foreground">Start</label>
+                <Input
+                  type="datetime-local"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground">End</label>
+                <Input
+                  type="datetime-local"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
             </div>
           </div>
 
