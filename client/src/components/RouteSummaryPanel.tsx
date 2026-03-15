@@ -663,7 +663,7 @@ export function RouteSummaryPanel({
       style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}
       data-testid="route-summary-panel"
     >
-      <div className="bg-dark/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 overflow-hidden max-h-[25vh] sm:max-h-[calc(100vh-120px)] overflow-y-auto">
+      <div className="bg-dark/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 overflow-hidden max-h-[33vh] sm:max-h-[calc(100vh-120px)] overflow-y-auto">
         <div className="p-4">
           <div className="flex items-start justify-between mb-3">
             <div className="flex-1 min-w-0">

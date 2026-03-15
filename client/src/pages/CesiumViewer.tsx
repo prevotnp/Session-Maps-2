@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRoute, useLocation } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,10 +22,11 @@ import {
   Loader2,
   Home,
 } from 'lucide-react';
-import CesiumRouteBuilder from '@/components/CesiumRouteBuilder';
-
-import CesiumRouteSummaryPanel from '@/components/CesiumRouteSummaryPanel';
-import type { Route } from '@shared/schema';
+import RouteBuilderModal from '@/components/modals/RouteBuilderModal';
+import { RouteSummaryPanel } from '@/components/RouteSummaryPanel';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+import type { Route, RoutePointOfInterest } from '@shared/schema';
 
 interface Cesium3dTileset {
   id: number;
@@ -105,11 +106,16 @@ export default function CesiumViewer() {
   const [mapOverlayActive, setMapOverlayActive] = useState(false);
   const [mapOverlayLoading, setMapOverlayLoading] = useState(false);
 
-  const [isRouteBuilderOpen, setIsRouteBuilderOpen] = useState(false);
+  const [showRouteBuilderModal, setShowRouteBuilderModal] = useState(false);
   const [showControlHints, setShowControlHints] = useState(true);
   const [isRoutesListOpen, setIsRoutesListOpen] = useState(false);
-  const [viewingRoute, setViewingRoute] = useState<Route | null>(null);
-  const [editingRoute, setEditingRoute] = useState<Route | null>(null);
+  const [displayedRoute, setDisplayedRoute] = useState<Route | null>(null);
+  const [isAddingWaypointToRoute, setIsAddingWaypointToRoute] = useState(false);
+  const [isAddingPOIMode, setIsAddingPOIMode] = useState(false);
+  const [pendingPOILocation, setPendingPOILocation] = useState<[number, number] | null>(null);
+  const [poiRefreshTrigger, setPoiRefreshTrigger] = useState(0);
+  const routeEntitiesRef = useRef<any[]>([]);
+  const routePolylineRef = useRef<any>(null);
 
 
   const tilesetId = params?.id ? parseInt(params.id) : null;
@@ -137,13 +143,13 @@ export default function CesiumViewer() {
   );
 
   useEffect(() => {
-    if (routeIdFromUrl && tilesetRoutes.length > 0 && !viewingRoute && !isLoading) {
+    if (routeIdFromUrl && tilesetRoutes.length > 0 && !displayedRoute && !isLoading) {
       const routeToView = tilesetRoutes.find((r: Route) => r.id === parseInt(routeIdFromUrl));
       if (routeToView) {
-        setViewingRoute(routeToView);
+        setDisplayedRoute(routeToView);
       }
     }
-  }, [routeIdFromUrl, tilesetRoutes, viewingRoute, isLoading]);
+  }, [routeIdFromUrl, tilesetRoutes, displayedRoute, isLoading]);
 
   useEffect(() => {
     if (!containerRef.current || !tileset) return;
@@ -355,6 +361,94 @@ export default function CesiumViewer() {
       handler.destroy();
     };
   }, [isMeasuring]);
+
+  // Refs to track adding modes inside the Cesium click handler
+  const isAddingWaypointRef = useRef(false);
+  const isAddingPOIRef = useRef(false);
+  const displayedRouteRef = useRef<Route | null>(null);
+  useEffect(() => { isAddingWaypointRef.current = isAddingWaypointToRoute; }, [isAddingWaypointToRoute]);
+  useEffect(() => { isAddingPOIRef.current = isAddingPOIMode; }, [isAddingPOIMode]);
+  useEffect(() => { displayedRouteRef.current = displayedRoute; }, [displayedRoute]);
+
+  // Click handler for adding waypoints or POIs on the 3D model
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !Cesium) return;
+
+    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+
+    handler.setInputAction((click: any) => {
+      // Only handle if we're in waypoint or POI adding mode
+      if (!isAddingWaypointRef.current && !isAddingPOIRef.current) return;
+
+      const position = viewer.scene.pickPosition(click.position);
+      if (!position) return;
+
+      const carto = Cesium.Cartographic.fromCartesian(position);
+      const lng = Cesium.Math.toDegrees(carto.longitude);
+      const lat = Cesium.Math.toDegrees(carto.latitude);
+      const elevation = carto.height;
+
+      if (isAddingPOIRef.current) {
+        setPendingPOILocation([lng, lat]);
+        return;
+      }
+
+      if (isAddingWaypointRef.current && displayedRouteRef.current) {
+        const route = displayedRouteRef.current;
+        const existingWaypoints = route.waypointCoordinates
+          ? JSON.parse(route.waypointCoordinates)
+          : [];
+
+        const newWaypoint = {
+          name: `Waypoint ${existingWaypoints.length + 1}`,
+          lngLat: [lng, lat] as [number, number],
+          elevation,
+        };
+
+        const updatedWaypoints = [...existingWaypoints, newWaypoint];
+        const pathCoords = updatedWaypoints.map((wp: any) => wp.lngLat);
+
+        // Calculate distance
+        let totalDistance = 0;
+        for (let i = 1; i < pathCoords.length; i++) {
+          const [lng1, lat1] = pathCoords[i - 1];
+          const [lng2, lat2] = pathCoords[i];
+          const R = 6371000;
+          const dLat = (lat2 - lat1) * Math.PI / 180;
+          const dLon = (lng2 - lng1) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          totalDistance += R * c;
+        }
+
+        autoSaveRouteMutation.mutate({
+          routeId: route.id,
+          routeData: {
+            pathCoordinates: JSON.stringify(pathCoords),
+            waypointCoordinates: JSON.stringify(updatedWaypoints),
+            totalDistance,
+            cesiumTilesetId: tilesetId,
+          }
+        });
+      }
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+    return () => {
+      handler.destroy();
+    };
+  }, [tilesetId, autoSaveRouteMutation]);
+
+  // Re-render route entities when displayedRoute changes
+  useEffect(() => {
+    if (displayedRoute) {
+      renderRouteEntities(displayedRoute);
+    } else {
+      removeRouteEntities();
+    }
+  }, [displayedRoute?.id, displayedRoute?.waypointCoordinates, renderRouteEntities, removeRouteEntities]);
 
   const toggleGps = useCallback(() => {
     if (gpsActive) {
@@ -829,41 +923,192 @@ export default function CesiumViewer() {
     };
   }, []);
 
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Remove all route visualization entities from the 3D scene
+  const removeRouteEntities = useCallback(() => {
+    if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
+    routeEntitiesRef.current.forEach((entity) => {
+      try { viewerRef.current.entities.remove(entity); } catch {}
+    });
+    routeEntitiesRef.current = [];
+    if (routePolylineRef.current) {
+      try { viewerRef.current.entities.remove(routePolylineRef.current); } catch {}
+      routePolylineRef.current = null;
+    }
+    try { viewerRef.current.scene.requestRender(); } catch {}
+  }, []);
+
+  // Render route waypoints as Cesium entities on the 3D model
+  const renderRouteEntities = useCallback((route: Route) => {
+    const viewer = viewerRef.current;
+    const C = (window as any).Cesium;
+    if (!viewer || viewer.isDestroyed() || !C) return;
+
+    removeRouteEntities();
+
+    let waypoints: Array<{ name: string; lngLat: [number, number]; elevation: number }> = [];
+    try {
+      if (route.waypointCoordinates) {
+        const parsed = JSON.parse(route.waypointCoordinates);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          waypoints = parsed.map((wp: any, i: number) => ({
+            name: wp.name || `Waypoint ${i + 1}`,
+            lngLat: wp.lngLat as [number, number],
+            elevation: wp.elevation ?? 0,
+          }));
+        }
+      }
+    } catch {}
+
+    if (waypoints.length === 0) {
+      try {
+        if (route.pathCoordinates) {
+          const parsed = JSON.parse(route.pathCoordinates);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            waypoints = parsed.map((coord: any, i: number) => ({
+              name: `Point ${i + 1}`,
+              lngLat: [coord[0], coord[1]] as [number, number],
+              elevation: coord[2] ?? 0,
+            }));
+          }
+        }
+      } catch {}
+    }
+
+    const positions: any[] = [];
+    waypoints.forEach((wp, index) => {
+      const cartesian = C.Cartesian3.fromDegrees(wp.lngLat[0], wp.lngLat[1], wp.elevation || 0);
+      positions.push(cartesian);
+
+      const entity = viewer.entities.add({
+        position: cartesian,
+        point: {
+          pixelSize: 12,
+          color: C.Color.fromCssColorString('#FF6B35'),
+          outlineColor: C.Color.WHITE,
+          outlineWidth: 2,
+          heightReference: C.HeightReference.NONE,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        label: {
+          text: wp.name,
+          font: 'bold 13px sans-serif',
+          fillColor: C.Color.WHITE,
+          outlineColor: C.Color.BLACK,
+          outlineWidth: 2,
+          style: C.LabelStyle.FILL_AND_OUTLINE,
+          verticalOrigin: C.VerticalOrigin.BOTTOM,
+          pixelOffset: new C.Cartesian2(0, -15),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+      });
+      routeEntitiesRef.current.push(entity);
+    });
+
+    if (positions.length >= 2) {
+      const polyline = viewer.entities.add({
+        polyline: {
+          positions,
+          width: 4,
+          material: C.Color.fromCssColorString('#FF6B35'),
+          clampToGround: false,
+          depthFailMaterial: C.Color.fromCssColorString('#FF6B35').withAlpha(0.5),
+        },
+      });
+      routePolylineRef.current = polyline;
+      try { viewer.flyTo(polyline, { duration: 1.5 }); } catch {}
+    }
+
+    viewer.scene.requestRender();
+  }, [removeRouteEntities]);
+
+  // Auto-save mutation for route waypoint edits
+  const autoSaveRouteMutation = useMutation({
+    mutationFn: async ({ routeId, routeData }: { routeId: number; routeData: any }) => {
+      const response = await apiRequest('PUT', `/api/routes/${routeId}`, routeData);
+      return response.json();
+    },
+    onSuccess: (updatedRoute) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/routes'] });
+      setDisplayedRoute(updatedRoute);
+      renderRouteEntities(updatedRoute);
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Error saving route', description: error.message, variant: 'destructive' });
+    },
+  });
+
   const handleOpenRouteBuilder = useCallback(() => {
     if (isMeasuring) handleMeasureClick();
-    setViewingRoute(null);
-    setEditingRoute(null);
+    setDisplayedRoute(null);
+    removeRouteEntities();
     setIsRoutesListOpen(false);
-    setIsRouteBuilderOpen(true);
-  }, [isMeasuring, handleMeasureClick]);
+    setShowRouteBuilderModal(true);
+  }, [isMeasuring, handleMeasureClick, removeRouteEntities]);
 
-  const handleRouteSaved = useCallback((route: Route) => {
-    setIsRouteBuilderOpen(false);
-    setEditingRoute(null);
-    setViewingRoute(route);
-  }, []);
+  const handleRouteCreated = useCallback((route: Route) => {
+    setShowRouteBuilderModal(false);
+    setDisplayedRoute(route);
+    setIsAddingWaypointToRoute(true);
+    renderRouteEntities(route);
+    toast({
+      title: 'Route created',
+      description: 'Tap on the 3D model to add waypoints.',
+    });
+  }, [renderRouteEntities, toast]);
 
   const handleViewRoute = useCallback((route: Route) => {
     setIsRoutesListOpen(false);
-    setIsRouteBuilderOpen(false);
-    setEditingRoute(null);
-    setViewingRoute(route);
-  }, []);
+    setShowRouteBuilderModal(false);
+    setDisplayedRoute(route);
+    renderRouteEntities(route);
+  }, [renderRouteEntities]);
 
-  const handleEditRoute = useCallback((route: Route) => {
-    setViewingRoute(null);
-    setEditingRoute(route);
-    setIsRouteBuilderOpen(true);
-  }, []);
+  const handleCloseDisplayedRoute = useCallback(() => {
+    setDisplayedRoute(null);
+    setIsAddingWaypointToRoute(false);
+    setIsAddingPOIMode(false);
+    setPendingPOILocation(null);
+    removeRouteEntities();
+  }, [removeRouteEntities]);
 
-  const handleCloseRouteView = useCallback(() => {
-    setViewingRoute(null);
-  }, []);
+  // Handle deleting a waypoint by index
+  const handleDeleteWaypointByIndex = useCallback(async (index: number) => {
+    if (!displayedRoute) return;
+    const existingWaypoints = displayedRoute.waypointCoordinates
+      ? JSON.parse(displayedRoute.waypointCoordinates)
+      : [];
+    if (existingWaypoints.length <= 0) return;
 
-  const handleCloseRouteBuilder = useCallback(() => {
-    setIsRouteBuilderOpen(false);
-    setEditingRoute(null);
-  }, []);
+    const updatedWaypoints = existingWaypoints.filter((_: any, i: number) => i !== index);
+    const pathCoords = updatedWaypoints.map((wp: any) => wp.lngLat);
+
+    // Calculate distance
+    let totalDistance = 0;
+    for (let i = 1; i < pathCoords.length; i++) {
+      const [lng1, lat1] = pathCoords[i - 1];
+      const [lng2, lat2] = pathCoords[i];
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lng2 - lng1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      totalDistance += R * c;
+    }
+
+    autoSaveRouteMutation.mutate({
+      routeId: displayedRoute.id,
+      routeData: {
+        pathCoordinates: JSON.stringify(pathCoords),
+        waypointCoordinates: JSON.stringify(updatedWaypoints),
+        totalDistance,
+      }
+    });
+  }, [displayedRoute, autoSaveRouteMutation]);
 
   const formatRouteDistance = (d: string | number | null | undefined) => {
     if (!d) return '—';
@@ -937,10 +1182,10 @@ export default function CesiumViewer() {
 
       <div className="absolute right-4 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-1.5 items-end">
         <button
-          className={`flex flex-col items-center justify-center w-16 h-16 rounded-lg bg-gray-900/80 border text-white hover:bg-gray-800 transition-colors ${isRouteBuilderOpen ? 'ring-2 ring-green-400 border-green-400' : 'border-white/20'}`}
+          className={`flex flex-col items-center justify-center w-16 h-16 rounded-lg bg-gray-900/80 border text-white hover:bg-gray-800 transition-colors ${showRouteBuilderModal ? 'ring-2 ring-green-400 border-green-400' : 'border-white/20'}`}
           onClick={handleOpenRouteBuilder}
         >
-          <RouteIcon className={`w-5 h-5 mb-0.5 ${isRouteBuilderOpen ? 'text-green-400' : ''}`} />
+          <RouteIcon className={`w-5 h-5 mb-0.5 ${showRouteBuilderModal ? 'text-green-400' : ''}`} />
           <span className="text-[10px] font-medium leading-tight text-center whitespace-pre-line">{'New\nRoute'}</span>
         </button>
 
@@ -1065,25 +1310,45 @@ export default function CesiumViewer() {
         </button>
       )}
 
-      {isRouteBuilderOpen && viewerRef.current && tilesetId && (
-        <CesiumRouteBuilder
-          isOpen={isRouteBuilderOpen}
-          onClose={handleCloseRouteBuilder}
-          viewer={viewerRef.current}
-          cesiumTilesetId={tilesetId}
-          editingRoute={editingRoute}
-          onRouteSaved={handleRouteSaved}
-        />
-      )}
+      {/* Route Builder Modal — creation form, then hands off to RouteSummaryPanel */}
+      <RouteBuilderModal
+        isOpen={showRouteBuilderModal}
+        onClose={() => setShowRouteBuilderModal(false)}
+        map={null}
+        existingWaypoints={[]}
+        onRouteCreated={handleRouteCreated}
+      />
 
-
-      {viewingRoute && viewerRef.current && (
-        <CesiumRouteSummaryPanel
-          route={viewingRoute}
-          viewer={viewerRef.current}
-          onClose={handleCloseRouteView}
-          onEdit={handleEditRoute}
-          isOwner={viewingRoute.userId === user?.id}
+      {/* Route Summary Panel — view/edit/build with waypoints, POIs, notes, photos */}
+      {displayedRoute && (
+        <RouteSummaryPanel
+          route={displayedRoute}
+          onClose={handleCloseDisplayedRoute}
+          isOwner={user?.id === displayedRoute.userId}
+          isAddingWaypoint={isAddingWaypointToRoute}
+          onStartAddWaypointMode={() => {
+            setIsAddingWaypointToRoute(true);
+            setIsAddingPOIMode(false);
+          }}
+          onStopAddWaypointMode={() => {
+            setIsAddingWaypointToRoute(false);
+          }}
+          onDeleteWaypoint={(index) => {
+            handleDeleteWaypointByIndex(index);
+          }}
+          onAddPOIMode={(enabled) => {
+            setIsAddingPOIMode(enabled);
+            if (enabled) {
+              setIsAddingWaypointToRoute(false);
+            }
+          }}
+          pendingPOILocation={pendingPOILocation}
+          onClearPendingPOI={() => setPendingPOILocation(null)}
+          onPOIsChanged={() => setPoiRefreshTrigger(prev => prev + 1)}
+          onRouteUpdated={(updatedRoute) => {
+            setDisplayedRoute(updatedRoute);
+            renderRouteEntities(updatedRoute);
+          }}
         />
       )}
 
@@ -1122,7 +1387,7 @@ export default function CesiumViewer() {
                 <div
                   key={route.id}
                   className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                    viewingRoute?.id === route.id
+                    displayedRoute?.id === route.id
                       ? 'border-orange-400/50 bg-orange-400/10'
                       : 'border-white/10 hover:border-white/30 hover:bg-white/5'
                   }`}
@@ -1186,6 +1451,24 @@ export default function CesiumViewer() {
             <p className="text-white/40 text-xs mt-1">
               {measurePointsRef.current.length} point{measurePointsRef.current.length !== 1 ? 's' : ''} placed
             </p>
+          </div>
+        </div>
+      )}
+
+      {isAddingWaypointToRoute && displayedRoute && !isMeasuring && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40">
+          <div className="bg-gray-900/90 border border-green-400/50 rounded-lg px-4 py-3 text-center">
+            <p className="text-green-300 text-xs font-medium mb-1">TAP TO ADD WAYPOINTS</p>
+            <p className="text-white/70 text-sm">Tap on the 3D model to place waypoints</p>
+          </div>
+        </div>
+      )}
+
+      {isAddingPOIMode && displayedRoute && !isMeasuring && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40">
+          <div className="bg-gray-900/90 border border-blue-400/50 rounded-lg px-4 py-3 text-center">
+            <p className="text-blue-300 text-xs font-medium mb-1">TAP TO ADD POI</p>
+            <p className="text-white/70 text-sm">Tap on the 3D model to place a point of interest</p>
           </div>
         </div>
       )}
