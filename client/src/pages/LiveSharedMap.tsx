@@ -1323,7 +1323,7 @@ export default function LiveSharedMap() {
             // Show tap-to-play banner (for iOS which blocks auto-play without gesture)
             if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
             setIncomingVoiceBanner(newMsg);
-            bannerTimerRef.current = setTimeout(() => setIncomingVoiceBanner(null), 10000);
+            bannerTimerRef.current = setTimeout(() => setIncomingVoiceBanner(null), 8000);
             if (!showRadioRef.current) {
               setUnheardVoiceCount(prev => prev + 1);
             }
@@ -1979,7 +1979,7 @@ export default function LiveSharedMap() {
               // Show tap-to-play banner
               if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
               setIncomingVoiceBanner(newMsg);
-              bannerTimerRef.current = setTimeout(() => setIncomingVoiceBanner(null), 10000);
+              bannerTimerRef.current = setTimeout(() => setIncomingVoiceBanner(null), 8000);
               if (!showRadioRef.current) {
                 setUnheardVoiceCount(prev => prev + 1);
               }
@@ -2297,6 +2297,59 @@ export default function LiveSharedMap() {
         {/* Map - use absolute positioning for reliable Mapbox rendering */}
         <div className="flex-1 relative">
           <div ref={mapContainer} className="absolute inset-0" />
+
+          {/* Incoming voice message banner — slides down from top */}
+          {incomingVoiceBanner && (() => {
+            const bannerColor = MEMBER_COLORS[(incomingVoiceBanner.userId % (MEMBER_COLORS.length - 1)) + 1] || '#3b82f6';
+            return (
+              <div
+                className="absolute top-0 left-0 right-0 z-30 animate-in slide-in-from-top duration-300"
+                style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+              >
+                <button
+                  onClick={() => {
+                    const msg = incomingVoiceBanner;
+                    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+                    setIncomingVoiceBanner(null);
+                    playVoiceMessage(msg);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-gray-900/95 backdrop-blur-sm border-b-2 shadow-lg active:bg-gray-800 transition-colors"
+                  style={{ borderBottomColor: bannerColor }}
+                  aria-label={`Play voice message from ${incomingVoiceBanner.username}`}
+                >
+                  {/* Sender color dot */}
+                  <div
+                    className="w-3 h-3 rounded-full shrink-0 animate-pulse"
+                    style={{ backgroundColor: bannerColor }}
+                  />
+
+                  {/* Sender name */}
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-white text-sm font-semibold truncate">
+                      {incomingVoiceBanner.username}
+                    </p>
+                    <p className="text-white/50 text-xs">
+                      {incomingVoiceBanner.duration}s voice message
+                    </p>
+                  </div>
+
+                  {/* Animated sound icon */}
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <div className="w-1 h-3 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
+                    <div className="w-1 h-5 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
+                    <div className="w-1 h-4 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
+                    <div className="w-1 h-6 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '100ms' }} />
+                    <div className="w-1 h-3 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '250ms' }} />
+                  </div>
+
+                  {/* Tap to listen label */}
+                  <span className="text-white font-medium text-sm shrink-0 bg-white/10 px-3 py-1.5 rounded-full">
+                    Tap to Listen
+                  </span>
+                </button>
+              </div>
+            );
+          })()}
           
           {/* GPS Center Button */}
           <div className="absolute top-40 right-4 z-10" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
@@ -2334,47 +2387,6 @@ export default function LiveSharedMap() {
                 </div>
               )}
 
-              {/* Incoming voice message tap-to-play banner */}
-              {incomingVoiceBanner && (
-                <button
-                  onClick={() => {
-                    const msg = incomingVoiceBanner;
-                    // Clear banner immediately on tap
-                    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
-                    setIncomingVoiceBanner(null);
-                    // Play with user gesture (satisfies iOS autoplay policy)
-                    playVoiceMessage(msg);
-                  }}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 active:scale-95 transition-all text-white px-3 py-2 rounded-full shadow-lg border border-white/20 animate-in slide-in-from-left-2 duration-300"
-                  aria-label={`Play voice message from ${incomingVoiceBanner.username}`}
-                >
-                  <Volume2 className="h-5 w-5 text-white flex-shrink-0" />
-                  <span className="text-sm font-medium whitespace-nowrap">
-                    From {incomingVoiceBanner.username}
-                  </span>
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Voice banner when quick-record area is hidden (radio/chat/members open) */}
-          {(showRadio || showChat || showMembers) && incomingVoiceBanner && (
-            <div className="absolute top-4 left-4 z-30" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
-              <button
-                onClick={() => {
-                  const msg = incomingVoiceBanner;
-                  if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
-                  setIncomingVoiceBanner(null);
-                  playVoiceMessage(msg);
-                }}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 active:scale-95 transition-all text-white px-3 py-2 rounded-full shadow-lg border border-white/20 animate-in slide-in-from-left-2 duration-300"
-                aria-label={`Play voice message from ${incomingVoiceBanner.username}`}
-              >
-                <Volume2 className="h-5 w-5 text-white flex-shrink-0" />
-                <span className="text-sm font-medium whitespace-nowrap">
-                  From {incomingVoiceBanner.username}
-                </span>
-              </button>
             </div>
           )}
 
