@@ -2313,37 +2313,37 @@ export default function LiveSharedMap() {
                     setIncomingVoiceBanner(null);
                     playVoiceMessage(msg);
                   }}
-                  className="w-full flex items-center gap-3 px-4 py-3 bg-gray-900/95 backdrop-blur-sm border-b-2 shadow-lg active:bg-gray-800 transition-colors"
+                  className="w-full flex items-center justify-center gap-4 px-5 py-6 bg-gray-900/95 backdrop-blur-sm border-b-2 shadow-lg active:bg-gray-800 transition-colors"
                   style={{ borderBottomColor: bannerColor }}
                   aria-label={`Play voice message from ${incomingVoiceBanner.username}`}
                 >
                   {/* Sender color dot */}
                   <div
-                    className="w-3 h-3 rounded-full shrink-0 animate-pulse"
+                    className="w-5 h-5 rounded-full shrink-0 animate-pulse"
                     style={{ backgroundColor: bannerColor }}
                   />
 
                   {/* Sender name */}
                   <div className="flex-1 min-w-0 text-left">
-                    <p className="text-white text-sm font-semibold truncate">
+                    <p className="text-white text-lg font-semibold truncate">
                       {incomingVoiceBanner.username}
                     </p>
-                    <p className="text-white/50 text-xs">
+                    <p className="text-white/50 text-sm">
                       {incomingVoiceBanner.duration}s voice message
                     </p>
                   </div>
 
                   {/* Animated sound icon */}
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    <div className="w-1 h-3 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
-                    <div className="w-1 h-5 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
-                    <div className="w-1 h-4 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
-                    <div className="w-1 h-6 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '100ms' }} />
-                    <div className="w-1 h-3 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '250ms' }} />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <div className="w-1.5 h-6 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
+                    <div className="w-1.5 h-10 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
+                    <div className="w-1.5 h-8 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
+                    <div className="w-1.5 h-12 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '100ms' }} />
+                    <div className="w-1.5 h-6 bg-white/80 rounded-full animate-pulse" style={{ animationDelay: '250ms' }} />
                   </div>
 
                   {/* Tap to listen label */}
-                  <span className="text-white font-medium text-sm shrink-0 bg-white/10 px-3 py-1.5 rounded-full">
+                  <span className="text-white font-semibold text-base shrink-0 bg-white/10 px-5 py-3 rounded-full">
                     Tap to Listen
                   </span>
                 </button>
