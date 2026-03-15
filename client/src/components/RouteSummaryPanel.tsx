@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, ChangeEvent } from 'react';
-import { X, ChevronDown, ChevronUp, ChevronRight, MapPin, Mountain, Ruler, FileText, Plus, Trash2, Star, Check, Loader2, Route as RouteIcon, Camera, Upload, Pencil, GripVertical } from 'lucide-react';
+import { X, ChevronDown, ChevronUp, ChevronRight, MapPin, Mountain, Ruler, FileText, Plus, Trash2, Star, Check, Loader2, Route as RouteIcon, Camera, Upload, Pencil, GripVertical, Calendar, Activity, Clock } from 'lucide-react';
 import { Route, RoutePointOfInterest, RouteNote } from '@shared/schema';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,36 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 
 type RoutingMode = 'direct' | 'trail' | 'road' | 'draw';
+
+const ACTIVITY_TYPE_OPTIONS = [
+  { value: 'skiing', label: 'Ski', icon: '⛷️', color: '#3B82F6' },
+  { value: 'hiking', label: 'Hike/Run', icon: '🥾', color: '#EAB308' },
+  { value: 'river', label: 'River Trip', icon: '🛶', color: '#EF4444' },
+  { value: 'cycling', label: 'Cycling', icon: '🚴', color: '#EC4899' },
+];
+
+const getActivityOption = (activityType: string | null | undefined) => {
+  if (!activityType) return ACTIVITY_TYPE_OPTIONS[1];
+  const mapped = activityType === 'running' ? 'hiking' : activityType;
+  return ACTIVITY_TYPE_OPTIONS.find(a => a.value === mapped) || ACTIVITY_TYPE_OPTIONS[1];
+};
+
+const formatTripDates = (startTime: string | Date | null | undefined, endTime: string | Date | null | undefined) => {
+  if (!startTime) return null;
+  const start = new Date(startTime);
+  const end = endTime ? new Date(endTime) : null;
+  const fmtDate = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+  const fmtTime = (d: Date) => {
+    let h = d.getHours(); const m = d.getMinutes(); const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${h}:${m.toString().padStart(2, '0')} ${ap}`;
+  };
+  if (!end) return `${fmtDate(start)} ${fmtTime(start)}`;
+  const sd = fmtDate(start); const ed = fmtDate(end);
+  if (sd === ed) return `${sd} · ${fmtTime(start)} - ${fmtTime(end)}`;
+  const days = Math.ceil((end.getTime() - start.getTime()) / 86400000);
+  return `${sd} - ${ed} · ${days} day${days !== 1 ? 's' : ''}`;
+};
 
 interface RouteSummaryPanelProps {
   route: Route;
@@ -71,7 +101,11 @@ export function RouteSummaryPanel({
   const [editingWaypointName, setEditingWaypointName] = useState('');
   const [draggedWaypointIndex, setDraggedWaypointIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  
+  const [showActivityDropdown, setShowActivityDropdown] = useState(false);
+  const [isEditingTripDates, setIsEditingTripDates] = useState(false);
+  const [editStartTime, setEditStartTime] = useState('');
+  const [editEndTime, setEditEndTime] = useState('');
+
   const queryClient = useQueryClient();
   const photoInputRef = useRef<HTMLInputElement>(null);
   const poiPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -130,6 +164,47 @@ export function RouteSummaryPanel({
       toast({ title: 'Failed to save changes', variant: 'destructive' });
     }
   });
+
+  // Update activity type via PATCH
+  const updateActivityMutation = useMutation({
+    mutationFn: async (activityType: string) => {
+      return apiRequest('PATCH', `/api/routes/${route.id}`, { activityType });
+    },
+    onSuccess: async () => {
+      toast({ title: 'Activity type updated' });
+      queryClient.invalidateQueries({ queryKey: ['/api/routes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/routes/public'] });
+      setShowActivityDropdown(false);
+      // Refresh the displayed route
+      const res = await fetch(`/api/routes/${route.id}`, { credentials: 'include' });
+      if (res.ok) {
+        const updated = await res.json();
+        onRouteUpdated?.(updated);
+      }
+    },
+    onError: () => {
+      toast({ title: 'Failed to update activity type', variant: 'destructive' });
+    }
+  });
+
+  // Save trip dates
+  const handleSaveTripDates = () => {
+    const updates: any = {};
+    updates.startTime = editStartTime || null;
+    updates.endTime = editEndTime || null;
+    updateRouteMutation.mutate(updates);
+    setIsEditingTripDates(false);
+    toast({ title: 'Trip dates updated' });
+  };
+
+  // Format datetime-local value from ISO
+  const toDatetimeLocal = (val: string | Date | null | undefined) => {
+    if (!val) return '';
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
 
   const handleWaypointReorder = async (fromIndex: number, toIndex: number) => {
     const routingMode = route.routingMode || 'direct';
@@ -722,7 +797,120 @@ export function RouteSummaryPanel({
                 {elevationChange()}
               </p>
             </div>
-            
+
+            {/* Activity Type */}
+            <div className="relative">
+              <div className="flex items-center justify-between bg-white/5 rounded-lg p-2.5">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-sky-400" />
+                  <span className="text-sm text-white/60">Activity</span>
+                </div>
+                {isOwner ? (
+                  <button
+                    onClick={() => setShowActivityDropdown(!showActivityDropdown)}
+                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-md hover:bg-white/10 transition-colors"
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getActivityOption(route.activityType).color }} />
+                    <span className="text-sm font-semibold text-white">
+                      {getActivityOption(route.activityType).icon} {getActivityOption(route.activityType).label}
+                    </span>
+                    <ChevronDown className="h-3 w-3 text-white/60" />
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getActivityOption(route.activityType).color }} />
+                    <span className="text-sm font-semibold text-white">
+                      {getActivityOption(route.activityType).icon} {getActivityOption(route.activityType).label}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {showActivityDropdown && (
+                <div className="absolute right-0 top-full mt-1 w-44 bg-gray-800 border border-white/10 rounded-lg shadow-lg z-50 overflow-hidden">
+                  {ACTIVITY_TYPE_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => updateActivityMutation.mutate(option.value)}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-white/10 transition-colors ${
+                        getActivityOption(route.activityType).value === option.value ? 'bg-white/5' : ''
+                      }`}
+                    >
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: option.color }} />
+                      <span>{option.icon}</span>
+                      <span className="text-white">{option.label}</span>
+                      {getActivityOption(route.activityType).value === option.value && (
+                        <Check className="h-3.5 w-3.5 ml-auto text-emerald-400" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Trip Dates */}
+            <div className="bg-white/5 rounded-lg p-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-pink-400" />
+                  <span className="text-sm text-white/60">Trip Dates</span>
+                </div>
+                {isOwner && !isEditingTripDates ? (
+                  <button
+                    onClick={() => {
+                      setEditStartTime(toDatetimeLocal(route.startTime));
+                      setEditEndTime(toDatetimeLocal(route.endTime));
+                      setIsEditingTripDates(true);
+                    }}
+                    className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                  >
+                    {route.startTime ? 'Edit' : 'Add'}
+                  </button>
+                ) : !isOwner && !route.startTime ? (
+                  <span className="text-sm text-white/40">Not set</span>
+                ) : null}
+              </div>
+              {isEditingTripDates ? (
+                <div className="mt-2 space-y-2">
+                  <div>
+                    <label className="text-xs text-white/50 block mb-1">Start</label>
+                    <input
+                      type="datetime-local"
+                      value={editStartTime}
+                      onChange={(e) => setEditStartTime(e.target.value)}
+                      className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/50 block mb-1">End</label>
+                    <input
+                      type="datetime-local"
+                      value={editEndTime}
+                      onChange={(e) => setEditEndTime(e.target.value)}
+                      className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-sm text-white"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSaveTripDates}
+                      className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded py-1.5 transition-colors"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setIsEditingTripDates(false)}
+                      className="flex-1 text-xs bg-white/10 hover:bg-white/20 text-white/70 rounded py-1.5 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : route.startTime ? (
+                <p className="text-sm font-semibold text-white mt-1">
+                  {formatTripDates(route.startTime, route.endTime)}
+                </p>
+              ) : null}
+            </div>
+
             <div>
               <div className="flex items-center gap-2">
                 <button
