@@ -538,6 +538,9 @@ export const insertRouteSchema = createInsertSchema(routes).pick({
   elevationLoss: true,
   estimatedTime: true,
   routingMode: true,
+  activityType: true,
+  startTime: true,
+  endTime: true,
   cesiumTilesetId: true,
   isPublic: true,
 }).extend({

@@ -20,7 +20,8 @@ import {
   Loader2,
   ChevronDown,
   Filter,
-  Calendar
+  Calendar,
+  List
 } from "lucide-react";
 import { useMapbox } from "@/hooks/useMapbox";
 import { useOutdoorPOIs } from "@/hooks/useOutdoorPOIs";
@@ -100,6 +101,7 @@ export default function Explore() {
   const [activeDroneLayers, setActiveDroneLayers] = useState<Set<number>>(new Set());
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(ACTIVITY_OPTIONS.map(a => a.value)));
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [showRoutesList, setShowRoutesList] = useState(false);
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
@@ -431,6 +433,20 @@ export default function Explore() {
             </div>
           </div>
 
+          <div className="flex items-center gap-2">
+          {/* Routes list button */}
+          <button
+            onClick={() => setShowRoutesList(!showRoutesList)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              showRoutesList
+                ? 'bg-emerald-600 text-white'
+                : 'bg-white/10 text-white/80 hover:bg-white/20'
+            }`}
+          >
+            <List className="w-3.5 h-3.5" />
+            <span>Routes</span>
+          </button>
+
           {/* Filter dropdown button */}
           <div className="relative">
             <button
@@ -494,12 +510,52 @@ export default function Explore() {
               </div>
             )}
           </div>
+          </div>
         </div>
       </div>
 
       {/* Click outside to close filter dropdown */}
       {showFilterDropdown && (
         <div className="fixed inset-0 z-[9]" onClick={() => setShowFilterDropdown(false)} />
+      )}
+
+      {/* Route list panel */}
+      {showRoutesList && (
+        <div className="bg-gray-800/95 backdrop-blur-sm border-b border-gray-700 max-h-[35vh] overflow-y-auto z-10">
+          {filteredRoutes.length === 0 ? (
+            <div className="p-4 text-center text-gray-400 text-sm">
+              {publicRoutes.length === 0 ? 'No public routes available yet. Make your routes public from My Maps!' : 'No routes match the current filters.'}
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-700/50">
+              {filteredRoutes.map((route) => (
+                <button
+                  key={route.id}
+                  onClick={() => {
+                    setSelectedRoute(route);
+                    setShowRouteInfo(true);
+                    flyToRoute(route);
+                    setShowRoutesList(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-left"
+                >
+                  <div
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: getRouteColor(route) }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium truncate">{route.name}</p>
+                    <p className="text-gray-400 text-xs">
+                      {route.owner.fullName || route.owner.username} • {formatDistance(route.totalDistance)}
+                      {route.activityType && ` • ${route.activityType}`}
+                    </p>
+                  </div>
+                  <Eye className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       <div className="flex-1 relative">
