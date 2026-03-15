@@ -313,7 +313,7 @@ export default function Explore() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-gray-900">
-      <div className="bg-gray-900/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between z-10 border-b border-gray-700">
+      <div className="bg-gray-900/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between z-10 border-b border-gray-700" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}>
         <div className="flex items-center gap-3">
           <Button 
             variant="ghost" 
