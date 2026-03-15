@@ -2366,7 +2366,7 @@ export default function LiveSharedMap() {
           })()}
           
           {/* GPS Center Button */}
-          <div className="absolute top-40 right-4 z-10" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
+          <div className="absolute top-48 right-4 z-10" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
             <button
               onClick={() => {
                 if (userLocationRef.current && map.current) {
@@ -2385,9 +2385,9 @@ export default function LiveSharedMap() {
             </button>
           </div>
 
-          {/* Quick-Record Floating Mic Button (upper-right, below nav controls, above GPS button) */}
+          {/* Quick-Record Floating Mic Button (upper-right, between compass and GPS button) */}
           {!showRadio && !quickRecording && !showChat && !showMembers && (
-            <div className="absolute top-32 right-4 z-30 flex flex-col items-center gap-2" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
+            <div className="absolute top-[8.5rem] right-4 z-30 flex flex-col items-center gap-2" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
               <button
                 onClick={handleQuickRecordStart}
                 className="quick-record-btn bg-red-600 rounded-full p-3 min-w-[52px] min-h-[52px] flex items-center justify-center shadow-lg hover:bg-red-700 active:scale-95 transition-all border-2 border-white/20"
