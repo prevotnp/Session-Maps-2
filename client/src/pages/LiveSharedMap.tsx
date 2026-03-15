@@ -2528,7 +2528,7 @@ export default function LiveSharedMap() {
                     data-testid="toolbar-add-waypoint"
                   >
                     <MapPin className="h-5 w-5 text-orange-400" />
-                    <span className="text-[10px] mt-0.5">Waypoint</span>
+                    <span className="text-[10px] mt-0.5">Add Waypoint</span>
                   </button>
 
                   {/* Draw Route */}
@@ -2548,7 +2548,7 @@ export default function LiveSharedMap() {
                     data-testid="toolbar-draw-route"
                   >
                     <RouteIcon className="h-5 w-5 text-blue-400" />
-                    <span className="text-[10px] mt-0.5">Route</span>
+                    <span className="text-[10px] mt-0.5">New Route</span>
                   </button>
 
                   {/* Routes List Panel */}
